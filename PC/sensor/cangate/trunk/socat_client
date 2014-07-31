@@ -1,0 +1,10 @@
+#!/bin/bash
+#
+# command line
+# socat_server <uart device>
+# Examples--
+# socat_server /dev/ttyUSB0
+# socat_server /dev/ttyUSB3
+# socat_server /dev/ttyACM0
+#
+socat TCP4:localhost:32123 FILE:$1,b230400,raw,echo=0
