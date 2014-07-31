@@ -21,7 +21,7 @@ cd ../../STM32F4_USB_CDC
 make
 make -f Makefile1
 echo 5555555555555555555  gate  55555555555555555555555555555555555555555555555555555555
-cd ../../../sensor/troy_f41/trunk
+cd ../../../etmc/etmc0/trunk
 make clean
 make
 
