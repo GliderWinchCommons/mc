@@ -103,10 +103,10 @@ For 16 sequences per DMA interrupt................ = 356.571 us per buffer (or 2
 #define SMP8	6
 #define SMP9	6
 #define SMP10	6
-#define SMP11	6
-#define SMP12	3
+#define SMP11	5 	//	Sample time for PC1	
+#define SMP12	5 	//	Sample time for PC2
 #define SMP13	3
-#define SMP14	3
+#define SMP14	5 	//	Sample time for PC4
 #define SMP15	3
 #define SMP16	7
 #define SMP17	7
@@ -272,8 +272,8 @@ static int adc_mc_init(void)
 	(see p 98 of datasheet) */
 	timedelay(2 * ticksperus);	// Wait
 
-	/* Set sample times for channels used on POD board (p 236) */	
-	ADC1_SMPR2 = ( (SMP3 << 9) | (SMP2 << 6) | (SMP1 << 0) );
+	/* Set sample times for channels */
+	ADC1_SMPR1 = (  (SMP11 << 3) | (SMP12 << 6) | (SMP14 << 12) ); // PC1/IN11, PC2/IN12, PC4/IN14
 
 	/* Setup the number of channels scanned (p 238) */
 	ADC1_SQR1 =  ( (NUMBERADCCHANNELS_MC-1) << 20) ;

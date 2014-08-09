@@ -67,8 +67,8 @@ void spi2rw_init(void)
 
 	// Set divisor to max.  If APB1 is 42 Mhz, then divide by 256 = 164062.5 Hz, 48 us per byte
 /* NOTE: The following line is where the "phase" is set for the clock and polarity */
-	//          (SSM SSI)  |enable peripheral | baud divisor | master select | CK 1 when idle    | phase  )
-	SPI2_CR1 =  (0x3 << 8) |   (1 << 6)       | (0x7 << 3)   |   (1 << 2)    |    (1 << 1)       |  0x01    ;
+	//          (SSM SSI)  |enable peripheral | baud divisor | master select | CK 1 when idle    | phase  | lsb first)
+	SPI2_CR1 =  (0x3 << 8) |   (1 << 6)       | (0x7 << 3)   |   (1 << 2)    |    (1 << 1)       |  0x01  | (1 << 7)  ;
 	
 	/* SPI-CR2 use default, no interrupt masks enabled at this point */
 
