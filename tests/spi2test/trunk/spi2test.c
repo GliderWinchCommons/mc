@@ -322,7 +322,7 @@ http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0337g/BABJFFGJ.ht
 #define PACECOUNT (168000000/2);	// Pace the output loop
 u32	t_led = *(volatile unsigned int *)0xE0001004 + PACECOUNT;
 #define SPI2SIZE 2 	// Number of bytes in the transfer	
-char bout[SPI2SIZE] = {0xAA,0x55};	// Initial outgoing pattern
+char bout[SPI2SIZE] = {0x55,0xAA};	// Initial outgoing pattern {0x00, 0x00}
 char bin[SPI2SIZE];
 
 
@@ -350,11 +350,12 @@ extern int spidebug1;
 		{
 			t_led += PACECOUNT;
 				toggle_led(12);
+				bout[0] = bout[0] ^ 0xff;
+				bout[1] = bout[1] ^ 0xff;
 y += 1;
 			if (spi2_busy() != 0) // Is SPI2 busy?
 			{ // Here, no.  
-				spi2_rw(bout, bin, SPI2SIZE); // Send/rcv three bytes
-//			spi2_rw(bout, bin, 3); // Send/rcv three bytes
+				spi2_rw(bout, bin, SPI2SIZE); // Send/rcv SPI2SIZE bytes
 x += 1; // Debugging counter
 			}
 			xprintf(UXPRT,"%5u %5u ",x, spidebug1);
