@@ -45,7 +45,7 @@ a push of the reset button to reset ADC/DMA hardware.
 #include "adc_mc.h"
 
 /* USART|UART assignment for xprintf and read/write */
-#define UXPRT	6	// Uart number for 'xprintf' messages
+#define UXPRT	3	// Uart number for 'xprintf' messages
 #define USTDO	2	// Uart number for gateway (STDOUT_FILE, STDIIN_FILE)
 
 /* file descriptor */

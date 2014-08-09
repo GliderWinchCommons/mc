@@ -93,9 +93,9 @@ For 16 sequences per DMA interrupt................ = 356.571 us per buffer (or 2
 
 */
 // *CODE* for number of cycles in conversion on each adc channel
-#define SMP1	6	
-#define SMP2	6
-#define SMP3	6
+#define SMP1	0	
+#define SMP2	0
+#define SMP3	0
 #define SMP4	6
 #define SMP5	3
 #define SMP6	3
