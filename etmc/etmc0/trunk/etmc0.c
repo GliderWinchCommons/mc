@@ -6,46 +6,33 @@
 *******************************************************************************/
 /* 
 
-This code was started as a compilation of gatef.c, adctest, and spi2 test.
-
-TODO !!! Need to see if these still need to be done.
-10-21-2013 Move 'Default_Handler' out of this routine
-           Pass 'sysclk' to usb routine and delete 'SysInit' in startup.s
-	   vector.c rather than .s and the problem with .weak
-
-11-24-2013 Hack of 'gateway/gate.c' to change from usb to ftdi
-12-01-2013 rev 132 Changed compression scheme to work with extended addresses
-12-16-2013 rev 148 - bin/ascii switch, and better compression.  Works with mode 0 & 1 (bin & asc)
-12-17-2013 rev 149 - moved CANuncompress, CANcompress calls into USB_PC_gateway.c, add CAN_error_msgs.c to count errors
-12-17-2013 rev 150 - added mode 2 (Gonzaga ascii/hex format)
+8/9/2014 This code was started as a compilation of gatef.c, adctest, and spi2 tests.
 
 */
 #include <fcntl.h>
 #include <unistd.h>
 
 
-
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
 #include "xprintf.h"
-
 #include <malloc.h>
 
 //	Added from spi2test.c
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/fcntl.h>
-#include "libopencm3/stm32/f4/usart.h"
+#include "libopencm3/stm32/f4/usart.h"	//	!!! May not be required
 #include "default_irq_handler.h"
 
 //	Added from adctest.c
 #include "libopencm3/stm32/f4/adc.h"
-#include "adc_mc.h"
+#include "adc_mc.h"						//	!!! May not be required
 
 
 
-#include "libopencm3/stm32/f4/rcc.h"
+#include "libopencm3/stm32/f4/rcc.h"	//	!!!	May not be required
 #include "libopencm3/stm32/f4/gpio.h"
 #include "libopencm3/stm32/f4/scb.h"
 
@@ -62,23 +49,26 @@ TODO !!! Need to see if these still need to be done.
 #include "CAN_gateway.h"
 #include "bsp_uart.h"
 #include "4x20lcd.h"
-#include "libopencm3/stm32/systick.h"
+#include "libopencm3/stm32/systick.h"	//	!!!	May not be required
 #include "CAN_test_msgs.h"
 #include "CAN_error_msgs.h"
 #include "spi2rw.h"
+
 
 static void canbuf_add(struct CANRCVBUF* p);
 
 /* USART|UART assignment for xprintf and read/write */
 #define UARTLCD	6	// Uart number for LCD messages
-#define UARTGPS	3	// Uart number for GPS 
+#define UARTGPS	3	// Uart number for GPS or debug
 #define UARTGATE 2  // UART number for Gateway (possibly Host later)
+
+#define UXPRT UARTGPS	//	Debugging port
 
 /*	LCD Line Size  */
 #define LCDLINESIZE 20
 
-#define SPI2SIZE 2 	// Number of bytes in the SPI transfer	
-
+// Number of bytes in the SPI transfer	
+#define SPI2SIZE 2 	
 
 
 /* &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&& */
@@ -99,19 +89,25 @@ APB2    =   84 MHz
 NOTE: PLL48CK must be 48 MHz for the USB
 */
 
-const struct CLOCKS clocks = { \
-	HSOSELECT_HSE_XTAL,	/* Select high speed osc: 0 = internal 16 MHz rc; 1 = external xtal controlled; 2 = ext input; 3 ext remapped xtal; 4 ext input */ \
-	1,			/* Source for main PLL & audio PLLI2S: 0 = HSI, 1 = HSE selected */ \
-	APBX_4,			/* APB1 clock = SYSCLK divided by 0,2,4,8,16; freq <= 42 MHz */ \
-	APBX_2,			/* APB2 prescalar code = SYSCLK divided by 0,2,4,8,16; freq <= 84 MHz */ \
-	AHB_1,			/* AHB prescalar code: SYSCLK/[2,4,8,16,32,64,128,256,512] (drives APB1,2 and HCLK) */ \
-	8000000,		/* External Oscillator source frequency, e.g. 8000000 for an 8 MHz xtal on the external osc. */ \
-	7,			/* Q (PLL) divider: USB OTG FS, SDIO, random number gen. USB OTG FS clock freq = VCO freq / PLLQ with 2 ≤ PLLQ ≤ 15 */ \
-	PLLP_2,			/* P Main PLL divider: PLL output clock frequency = VCO frequency / PLLP with PLLP = 2, 4, 6, or 8 */ \
-	84,			/* N Main PLL multiplier: VCO output frequency = VCO input frequency × PLLN with 64 ≤ PLLN ≤ 432	 */ \
-	2			/* M VCO input frequency = PLL input clock frequency / PLLM with 2 ≤ PLLM ≤ 63 */
+const struct CLOCKS clocks = { \ HSOSELECT_HSE_XTAL,	/* 	Select high speed osc: 
+					0 = internal 16 MHz rc; 1 = external 
+					xtal controlled; 2 = ext input; 3 ext remapped xtal; 4 ext input */ \
+	1,				/* 	Source for main PLL & audio PLLI2S: 0 = HSI, 1 = HSE selected */ \
+	APBX_4,			/* 	APB1 clock = SYSCLK divided by 0,2,4,8,16; freq <= 42 MHz */ \
+	APBX_2,			/* 	APB2 prescalar code = SYSCLK divided by 0,2,4,8,16; freq <= 84 MHz */ \
+	AHB_1,			/* 	AHB prescalar code: SYSCLK/[2,4,8,16,32,64,128,256,512] (drives APB1,2 
+						and HCLK) */ \
+	8000000,		/* 	External Oscillator source frequency, e.g. 8000000 for an 8 MHz xtal 
+						on the external osc. */ \
+	7,				/* 	Q (PLL) divider: USB OTG FS, SDIO, random number gen. USB OTG FS clock 
+						freq = VCO freq / PLLQ with 2 ≤ PLLQ ≤ 15 */ \
+	PLLP_2,			/* 	P Main PLL divider: PLL output clock frequency = VCO frequency / PLLP 
+						with PLLP = 2, 4, 6, or 8 */ \
+	84,				/* 	N Main PLL multiplier: VCO output frequency = VCO input frequency
+						× PLLN with 64 ≤ PLLN ≤ 432	 */ \
+	2				/* 	M VCO input frequency = PLL input clock frequency / PLLM with
+						2 ≤ PLLM ≤ 63 */
 };
-
 
 
 /* Parameters for setting up CAN */
@@ -129,14 +125,12 @@ const struct CAN_PARAMS can_params = { \
 	4,		// sjw:  CAN_BTR[24:25] Resynchronization jump width
 	4,		// tbs2: CAN_BTR[22:20] Time segment 2 (e.g. 5)
 	11,		// tbs1: CAN_BTR[19:16] Time segment 1 (e.g. 12)
-	1,		// dbf:  CAN_MCR[16] Debug Freeze; 0 = normal; non-zero =
+	1,		// dbf:  CAN_MCR[16] Debug Freeze; 0 = normal; non-zero = Debug Freeze
 	0,		// ttcm: CAN_MCR[7] Time triggered communication mode
 	1,		// abom: CAN_MCR[6] Automatic bus-off management
 	0,		// awum: CAN_MCR[5] Auto WakeUp Mode
 	0		// nart: CAN_MCR[4] No Automatic ReTry (0 = retry; non-zero = transmit once)
 };
-
-
 
 static struct PCTOGATEWAY pctogateway; // CAN->PC
 static struct PCTOGATEWAY gatewayToPC; // PC->CAN
@@ -147,21 +141,25 @@ static struct CANRCVBUF canrcvbuf;
 //static u32 seqnum;
 //static u32 seqnum_old = 0;
 
+
+
 /* Circular buffer for passing CAN BUS msgs to PC */
-#define CANBUSBUFSIZE	64	// Number of incoming CAN msgs to buffer
+#define CANBUSBUFSIZE	64			// Number of incoming CAN msgs to buffer
 static struct CANRCVBUF canbuf[CANBUSBUFSIZE];
 static u32 canmsgct[CANBUSBUFSIZE]; // Msg seq number for CAN-to-PC.
-static int canbufidxi = 0;	// Incoming index into canbuf
-static int canbufidxm = 0;	// Outgoing index into canbuf
+static int canbufidxi = 0;			// Incoming index into canbuf
+static int canbufidxm = 0;			// Outgoing index into canbuf
+
 static int incIdx(int x){x += 1; if (x >= CANBUSBUFSIZE) x = 0; return x;} 
 
-static struct CANRCVBUF* 	pfifo0;	// Pointer to CAN driver buffer for incoming CAN msgs, low priority
-static struct CANRCVTIMBUF*	pfifo1;	// Pointer to CAN driver buffer for incoming CAN msgs, high priority
+static struct CANRCVBUF* 	pfifo0;		// Pointer to CAN driver buffer for incoming CAN msgs, low priority
+static struct CANRCVTIMBUF*	pfifo1;		// Pointer to CAN driver buffer for incoming CAN msgs, high priority
 static struct CANRCVBUF* 	ptest_pc;	// Pointer to buffer with a CAN test msg
 static struct CANRCVBUF* 	ptest_can;	// Pointer to buffer with a CAN test msg
 
 /* Put sequence number on incoming CAN messages that will be sent to the PC */
 u8 canmsgctr = 0;	// Count incoming CAN msgs
+
 
 // State machine
 int currentState = 0;
@@ -203,7 +201,9 @@ float desiredTension = 0.0;
 float desiredSpeed = 0.0;
 float outputTorque = 0.0;
 
-/* --------------- For debugging...(usb) ------------------------------ */
+
+
+/* --------------- For debugging...----------------------------------- */
 int Default_HandlerCode = 999;
 u32 DH08;
 void Default_Handler08(void) {DH08 += 1; return;}
@@ -307,9 +307,6 @@ void Default_Handler90(void) { Default_HandlerCode = 90; panic_leds(5); }
 /* LED identification
 Discovery F4 LEDs: PD 12, 13, 14, 15
 
-|-number on pc board below LEDs
-|   |- color
-v vvvvvv  macro
 12 green   
 13 orange
 14 red
@@ -353,23 +350,12 @@ void toggle_led (int lednum)
 
 }
 
-// int strlen(const char *str) {
-// 	const char *s;
-// 	for (s = str; *s; ++s);
-// 	return(s - str);
-// }
-
-// void padString(char padChar, const *str, int length) {
-// 	while(strlen(str) < length) {
-// 		// str[strlen(str)] = padChar;
-// 	}
-// }
 
 /* Setup & initialization functions */ 
 void initMasterController () {
 	int init_ret = -4;
 	/* --------------------- Begin setting things up -------------------------------------------------- */ 
-		clockspecifysetup((struct CLOCKS*)&clocks);		// Get the system clock and bus clocks running
+		clockspecifysetup((struct CLOCKS*) & clocks);		// Get the system clock and bus clocks running
 	/* ---------------------- Set up pins ------------------------------------------------------------- */
 		/* Configure pins */
 		DISCgpiopins_Config();	// Configure pins
@@ -378,19 +364,19 @@ void initMasterController () {
 		setbuf(stdout, NULL);
 	/* --------------------- Initialize UARTs ---------------------------------------------------- */
 		bsp_uart_int_init_number(UARTGATE, 115200, 256, 256, 0x40);	// UART used for the Gateway
-		bsp_uart_int_init_number(UARTGPS, 115200, 256, 256, 0x40);	// UART used for the GPS		
+		bsp_uart_int_init_number(UXPRT, 115200, 256, 256, 0x40);	// UART used for the GPS		
 		lcd_init(UARTLCD); 											// UART used for the LCD screen
-		lcd_clear(UARTLCD);											//	clear the LCD										
+		lcd_clear(UARTLCD);											//	clear the LCD	!!! May not be needed									
 	
-		/* ---------------------- DTW sys counter -------------------------------------------------------- */
+	/* ---------------------- DTW sys counter -------------------------------------------------------- */
 		// Use DTW_CYCCNT counter (driven by sysclk) for polling type timing 
 		// CYCCNT counter is in the Cortex-M-series core.  See the following for details 
 		// http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0337g/BABJFFGJ.html 
 		*(volatile unsigned int*)0xE000EDFC |= 0x01000000; // SCB_DEMCR = 0x01000000;
 		*(volatile unsigned int*)0xE0001000 |= 0x1;	// Enable DTW_CYCCNT (Data Watch cycle counter)
 
-	/* ---------------------- Let the hapless Op know it is alive ------------------------------------ */
-	/* Announce who we are. ('xprintf' uses uart number to deliver the output.) */
+	/* ---------------------- Let the Op know it is alive ------------------------------------ */
+	/* Announce who we are. ('xprintf' uses uart number to deliver the output.) */		
 	xprintf(UXPRT,  " \n\rDISCOVERY F4 SPI2TEST: 02-06-2014  v0\n\r");
 	/* Make sure we have the correct bus frequencies */
 	xprintf (UXPRT, "   hclk_freq (MHz) : %9u...............................\n\r",  hclk_freq/1000000);	
@@ -410,8 +396,10 @@ void initMasterController () {
 
 	/* Setup STDOUT, STDIN (a shameful sequence until we sort out 'newlib' and 'fopen'.)  The following 'open' sets up 
 	   the USART/UART that will be used as STDOUT_FILENO, and STDIN_FILENO.  Don't call 'open' again!  */
-fd = open("tty2", 0,0); // This sets up the uart control block pointer versus file descriptor ('fd')
+	fd = open("tty2", 0,0); // This sets up the uart control block pointer versus file descriptor ('fd')
 
+
+/*	Temporary code for testing UARTs, LCD, ADCs, SPI2*/
 int count = 0;
 
 extern u32 cic_debug0;	// counter in adc_mc.c
@@ -419,10 +407,10 @@ u32 cic_debug0_prev = 0; // Used to take difference between new and "previous" c
 char bout[SPI2SIZE] = {0x55,0xAA};	// Initial outgoing pattern {0x00, 0x00}
 char bin[SPI2SIZE];
 
+
 void printbits(char* p);
 
-int x = 0;
-int y = 0;
+
 extern int spidebug1;
 
 t_led = *(volatile unsigned int *)0xE0001004 + FLASHCOUNT;	//	initial t_led
@@ -432,8 +420,8 @@ while (1 == 1)
 		{ // Here, yes.
 			sprintf(vv, "Test Count: %5d", count++);
 			lcd_printToLine(UARTLCD, 0, vv);
-			xprintf(UARTGPS, "3 %s", vv);
-			printf("2 %s\n\r", vv);
+			xprintf(UXPRT, "%s", vv);
+			printf("%s\n\r", vv);
 
 			//	ADC
 			sprintf(vv, "Control Lever Output: %5d", adc_last_filtered[0]);
@@ -445,17 +433,19 @@ while (1 == 1)
 				xprintf(UXPRT,"%5i ", adc_last_filtered[i]);	// ADC filtered and scaled reading
 
 			//	SPI 
-			y += 1;	//	Debuging Counter
+			
 			if (spi2_busy() != 0) // Is SPI2 busy?
 			{ // Here, no.  
 				spi2_rw(bout, bin, SPI2SIZE); // Send/rcv SPI2SIZE bytes
-			x += 1; // Debugging counter
+				bout[0] ^=  0xff;
+				bout[1] ^=  0xff;
+			
 			}
 			sprintf(vv, "Switch Inputs: TBA");
 			lcd_printToLine(UARTLCD, 2, vv);
 
 
-			xprintf(UXPRT,"%5u %5u ",x, spidebug1);
+			xprintf(UXPRT,"%5u ", spidebug1);
 			printbits(bin); // Print the bits
 
 			xprintf(UXPRT,"\n\r");
@@ -464,6 +454,9 @@ while (1 == 1)
 		}
 
 }
+
+/*	!!!	Should this be moved to init function once it is needed?  Looks like several things below here are already
+done 	*/
 
 	/* --------------------- CAN setup ------------------------------------------------------------------- */
 		/*  Pin usage for CAN--
@@ -507,9 +500,7 @@ while (1 == 1)
 		/* Set modes for routines that receive and send CAN msgs */
 		pctogateway.mode_link = MODE_LINK;
 		gatewayToPC.mode_link = MODE_LINK;
-	/* --------------------- Initialize SPI2 ------------------------------------------------------------------------------- */
-		spi2rw_init();
-		t_spi = *(volatile unsigned int *)0xE0001004 + SPIPACE;
+	
 	/* --------------------- LCD ---------------------------------------------------------------------------- */
 		t_lcd = *(volatile unsigned int *)0xE0001004 + LCDPACE;
 }
@@ -771,3 +762,28 @@ static void canbuf_add(struct CANRCVBUF* p)
 	return;
 }
 
+/******************************************************************************
+ * Print out the bits for the array
+ ******************************************************************************/
+void printbits(char* p)
+{
+	int i,j;
+	char c;
+
+	/* Print out the bits for the incoming bytes */
+	for (j = 0; j < SPI2SIZE; j++) // For each byte in the cycle
+	{
+		for (i = 0; i < 8; i++) // For each bit within a byte
+		{
+			if ( (*p & (1<<i)) == 0) 
+				c = '.';	// Symbol for "zero"
+			else
+				c = '1';	// Symbol for "one"
+			xprintf (UXPRT,"%c",c);
+		}
+		p++;
+	}
+
+	xprintf (UXPRT,"\n\r");
+	return;
+}

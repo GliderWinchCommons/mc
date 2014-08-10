@@ -6,6 +6,8 @@
 * Description        : Configure gpio port pins
 *******************************************************************************/
 
+
+//	!!!	Can I remove these?
 //#include "rcc.h"
 //#include "gpio.h"
 #include "pinconfig_all.h"
@@ -61,7 +63,7 @@ These bits are written by software to configure the I/O direction mode.
 		/* Output pin speed */
 /* 7.4.3 GPIO port output speed register (GPIOx_OSPEEDR) (x = A..I/) */
 
-		*(pp + 2) &= ~(0x3 << (p->pin * 2));	// Clear speed code
+		*(pp + 2) &= ~(0x3 << (p->pin * 2));		// Clear speed code
 		*(pp + 2) |= (p->speed << (p->pin * 2));	// Set speed code
 	}
 /*

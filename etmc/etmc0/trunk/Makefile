@@ -1,7 +1,7 @@
 # Sources
 
 # Name of the .c file with 'main' as well as output file name
-NAME	= gatef
+NAME	= etmc0
 
 # Linker file
 LDFILE	=stm32_flash.ld
