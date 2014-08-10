@@ -103,10 +103,10 @@ For 16 sequences per DMA interrupt................ = 356.571 us per buffer (or 2
 #define SMP8	6
 #define SMP9	6
 #define SMP10	6
-#define SMP11	5 	//	Sample time for PC1	
-#define SMP12	5 	//	Sample time for PC2
+#define SMP11	7 	//	Sample time for PC1	
+#define SMP12	7 	//	Sample time for PC2
 #define SMP13	3
-#define SMP14	5 	//	Sample time for PC4
+#define SMP14	7 	//	Sample time for PC4
 #define SMP15	3
 #define SMP16	7
 #define SMP17	7

@@ -304,7 +304,7 @@ http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0337g/BABJFFGJ.ht
 /* --------------------- Endless loop prep  ---------------------------------------------------------------------------- */
 #define FLASHCOUNT 42000000;	// LED flash
 u32	t_led = *(volatile unsigned int *)0xE0001004 + FLASHCOUNT; // Set initial time
-#define ADCCOUNT 168000000/10;	// LED flash
+#define ADCCOUNT 168000000/10;	
 u32	t_adc = *(volatile unsigned int *)0xE0001004 + ADCCOUNT; // Set initial time
 u32	ct0 = 0;	// Sequence number
 
