@@ -147,8 +147,6 @@ static int incIdx(int x){x += 1; if (x >= CANBUSBUFSIZE) x = 0; return x;}
 
 static struct CANRCVBUF* 	pfifo0;		// Pointer to CAN driver buffer for incoming CAN msgs, low priority
 static struct CANRCVTIMBUF*	pfifo1;		// Pointer to CAN driver buffer for incoming CAN msgs, high priority
-static struct CANRCVBUF* 	ptest_pc;	// Pointer to buffer with a CAN test msg
-static struct CANRCVBUF* 	ptest_can;	// Pointer to buffer with a CAN test msg
 
 /* Put sequence number on incoming CAN messages that will be sent to the PC */
 u8 canmsgctr = 0;	// Count incoming CAN msgs
@@ -164,7 +162,7 @@ char vv[128];	// sprintf buf
 
 // led timer
 u32	t_led;
-#define FLASHCOUNT (168000000/2);	// LED flash
+#define FLASHCOUNT (168000000/10);	// LED flash
 
 // 64th second counter
 u32 t_timeKeeper;
@@ -336,7 +334,7 @@ void toggle_led (int lednum)
 		GPIO_BSRR(GPIOD) = (1<<lednum);	// Set bit
 	}
 	else
-	{ // HEre, LED bit was on
+	{ // Here, LED bit was on
 		GPIO_BSRR(GPIOD) = (1<<(lednum+16));	// Reset bit
 	}
 
@@ -353,12 +351,12 @@ void initMasterController () {
 		DISCgpiopins_Config();	// Configure pins
 	/* ---------------------- Set usb ----------------------------------------------------------------- */
 		// usb1_init();	// Initialization for USB (STM32F4_USB_CDC demo package)
-		setbuf(stdout, NULL);
+		//setbuf(stdout, NULL);
 	/* --------------------- Initialize UARTs ---------------------------------------------------- */
 		bsp_uart_int_init_number(UARTGATE, 115200, 256, 256, 0x40);	// UART used for the Gateway
-		bsp_uart_int_init_number(UXPRT, 115200, 256, 256, 0x40);	// UART used for the GPS		
+		bsp_uart_int_init_number(UXPRT, 115200, 256, 256, 0x40);	// UART used for debugging		
 		lcd_init(UARTLCD); 											// UART used for the LCD screen
-		lcd_clear(UARTLCD);											//	clear the LCD	!!! May not be needed									
+										
 	
 	/* ---------------------- DTW sys counter -------------------------------------------------------- */
 		// Use DTW_CYCCNT counter (driven by sysclk) for polling type timing 
@@ -369,7 +367,7 @@ void initMasterController () {
 
 	/* ---------------------- Let the Op know it is alive ------------------------------------ */
 	/* Announce who we are. ('xprintf' uses uart number to deliver the output.) */		
-	xprintf(UXPRT,  " \n\rDISCOVERY F4 SPI2TEST: 02-06-2014  v0\n\r");
+	xprintf(UXPRT,  " \n\rDISCOVERY F4 Consolidated Tests: 08/10/2014  v0\n\r");
 	/* Make sure we have the correct bus frequencies */
 	xprintf (UXPRT, "   hclk_freq (MHz) : %9u...............................\n\r",  hclk_freq/1000000);	
 	xprintf (UXPRT, "  pclk1_freq (MHz) : %9u...............................\n\r", pclk1_freq/1000000);	
@@ -378,6 +376,7 @@ void initMasterController () {
 
 	/* --------------------- Initialize SPI2 ------------------------------------------------------------------------------- */
 	spi2rw_init();
+	xprintf (UXPRT, "   SPI Init Complete\n\r");
 
 	/* --------------------- ADC initialization ---------------------------------------------------------------------------- */
 	int i = adc_mc_init_sequence();
@@ -385,6 +384,8 @@ void initMasterController () {
 	{
 		xprintf (UXPRT, "ADC init failed with code: %i\n\r", i);	
 	}
+	xprintf (UXPRT, "   ADC Init Complete\n\r");
+	
 
 	/* Setup STDOUT, STDIN (a shameful sequence until we sort out 'newlib' and 'fopen'.)  The following 'open' sets up 
 	   the USART/UART that will be used as STDOUT_FILENO, and STDIN_FILENO.  Don't call 'open' again!  */
@@ -409,38 +410,40 @@ t_led = *(volatile unsigned int *)0xE0001004 + FLASHCOUNT;	//	initial t_led
 
 while (1 == 1) 
 {if (((int)(*(volatile unsigned int *)0xE0001004 - t_led)) > 0) // Has the time expired?
-		{ // Here, yes.
-			sprintf(vv, "Test Count: %5d", count++);
-			lcd_printToLine(UARTLCD, 0, vv);
-			xprintf(UXPRT, "%s", vv);
+		{ //	Time exprired
+
+			sprintf(vv, "Test Count: %4d", count);
+			if (count % 4 == 0) lcd_printToLine(UARTLCD, 0, vv);
 			printf("%s\n\r", vv);
 
 			//	ADC
-			sprintf(vv, "Control Lever Output: %5d", (int) adc_last_filtered[0]);
-			lcd_printToLine(UARTLCD, 1, vv);
-			xprintf(UXPRT, "%5i: ", (cic_debug0 - cic_debug0_prev)); // Sequence number, number of filtered readings between xprintf's
+			sprintf(vv, "CL: %5d  %5d", (int) adc_last_filtered[0], count);
+			if (count % 4 == 1) lcd_printToLine(UARTLCD, 1, vv);
+			xprintf(UXPRT, "%5d  %5i: ", (cic_debug0 - cic_debug0_prev), count); // Sequence number, number of filtered readings between xprintf's
 			cic_debug0_prev = cic_debug0;
 
 			for (i = 0; i < NUMBERADCCHANNELS_MC; i++)	// Loop through the three ADC channels
-				xprintf(UXPRT,"%5i ", adc_last_filtered[i]);	// ADC filtered and scaled reading
+				xprintf(UXPRT,"%5d ", adc_last_filtered[i]);	// ADC filtered and scaled reading
 
 			//	SPI 
 			
 			if (spi2_busy() != 0) // Is SPI2 busy?
-			{ // Here, no.  
+			{ // SPI completed  
 				spi2_rw(bout, bin, SPI2SIZE); // Send/rcv SPI2SIZE bytes
 				bout[0] ^=  0xff;
 				bout[1] ^=  0xff;
-			
 			}
-			sprintf(vv, "Switch Inputs: TBA");
-			lcd_printToLine(UARTLCD, 2, vv);
-
+			sprintf(vv, "Sw:.. Count: %3d", count);
+			if (count % 4 == 0) lcd_printToLine(UARTLCD, 2, vv);
 
 			xprintf(UXPRT,"%5u ", spidebug1);
-			printbits(bin); // Print the bits
+			printbits(bin); // Print the bits			
 
-			xprintf(UXPRT,"\n\r");
+			sprintf(vv, "Ln 4, Count: %3d", count);
+			if (count % 4 == 1) lcd_printToLine(UARTLCD, 3, vv);	
+
+			count++;
+
 			toggle_4leds(); 	// Advance some LED pattern
 			t_led += FLASHCOUNT; 	// Set next toggle time
 		}

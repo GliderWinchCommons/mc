@@ -97,7 +97,7 @@ LoopFillZerobss:
   bl  SystemInit
 /* Call static constructors */
   bl __libc_init_array
-/* Call the application's entry point.*/
+/* Call the applications entry point.*/
   bl  main
   bx  lr
 .size  Reset_Handler, .-Reset_Handler
@@ -319,7 +319,7 @@ g_pfnVectors:
 */
    .weak      ADC_IRQHandler
    .thumb_set ADC_IRQHandler,Default_Handler27
-/*
+
    .weak      CAN1_TX_IRQHandler
    .thumb_set CAN1_TX_IRQHandler,Default_Handler28
 
@@ -331,7 +331,7 @@ g_pfnVectors:
 
    .weak      CAN1_SCE_IRQHandler
    .thumb_set CAN1_SCE_IRQHandler,Default_Handler31
-*/
+
    .weak      EXTI9_5_IRQHandler
    .thumb_set EXTI9_5_IRQHandler,Default_Handler32
 
@@ -355,7 +355,7 @@ g_pfnVectors:
 
    .weak      TIM4_IRQHandler
    .thumb_set TIM4_IRQHandler,Default_Handler39
-/*
+
    .weak      I2C1_EV_IRQHandler
    .thumb_set I2C1_EV_IRQHandler,Default_Handler40
 
@@ -367,7 +367,7 @@ g_pfnVectors:
 
    .weak      I2C2_ER_IRQHandler
    .thumb_set I2C2_ER_IRQHandler,Default_Handler43
-*/
+
    .weak      SPI1_IRQHandler
    .thumb_set SPI1_IRQHandler,Default_Handler44
 /*
@@ -403,13 +403,14 @@ g_pfnVectors:
 
    .weak      TIM8_CC_IRQHandler
    .thumb_set TIM8_CC_IRQHandler,Default_Handler55
-
+/*
    .weak      DMA1_Stream7_IRQHandler
    .thumb_set DMA1_Stream7_IRQHandler,Default_Handler56
-
+*/
+/*
    .weak      FSMC_IRQHandler
    .thumb_set FSMC_IRQHandler,Default_Handler57
-
+*/
    .weak      SDIO_IRQHandler
    .thumb_set SDIO_IRQHandler,Default_Handler58
 
@@ -475,7 +476,8 @@ g_pfnVectors:
 
    .weak      DMA2_Stream7_IRQHandler
    .thumb_set DMA2_Stream7_IRQHandler,Default_Handler79
-
+*/
+/*
    .weak      USART6_IRQHandler
    .thumb_set USART6_IRQHandler,Default_Handler80
 */

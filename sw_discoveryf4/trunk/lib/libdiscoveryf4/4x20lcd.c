@@ -28,19 +28,19 @@ void lcd_clear(int uartnumber) {
 
 void lcd_on(int uartnumber) {
 	bsp_uart_putc_uartnum(uartnumber, 254);
-	bsp_uart_putc_uartnum(uartnumber, 0x0C); // clear screen
+	bsp_uart_putc_uartnum(uartnumber, 0x0C); // remove cursor
 }
 
 void lcd_off(int uartnumber) {
 	bsp_uart_putc_uartnum(uartnumber, 254);
-	bsp_uart_putc_uartnum(uartnumber, 0x08); // clear screen
+	bsp_uart_putc_uartnum(uartnumber, 0x08); // turn off screem
 }
 
 void lcd_print(int uartnumber, char* p) 
 {
 	char vv[21];
 	strncpy(vv, p, 20);
-	vv[20] = 0;
+	vv[20] = 0;		//	insure string is null terminated
 	bsp_uart_puts_uartnum(uartnumber, p);
 }
 
