@@ -89,24 +89,17 @@ APB2    =   84 MHz
 NOTE: PLL48CK must be 48 MHz for the USB
 */
 
-const struct CLOCKS clocks = { \ HSOSELECT_HSE_XTAL,	/* 	Select high speed osc: 
-					0 = internal 16 MHz rc; 1 = external 
-					xtal controlled; 2 = ext input; 3 ext remapped xtal; 4 ext input */ \
-	1,				/* 	Source for main PLL & audio PLLI2S: 0 = HSI, 1 = HSE selected */ \
-	APBX_4,			/* 	APB1 clock = SYSCLK divided by 0,2,4,8,16; freq <= 42 MHz */ \
-	APBX_2,			/* 	APB2 prescalar code = SYSCLK divided by 0,2,4,8,16; freq <= 84 MHz */ \
-	AHB_1,			/* 	AHB prescalar code: SYSCLK/[2,4,8,16,32,64,128,256,512] (drives APB1,2 
-						and HCLK) */ \
-	8000000,		/* 	External Oscillator source frequency, e.g. 8000000 for an 8 MHz xtal 
-						on the external osc. */ \
-	7,				/* 	Q (PLL) divider: USB OTG FS, SDIO, random number gen. USB OTG FS clock 
-						freq = VCO freq / PLLQ with 2 ≤ PLLQ ≤ 15 */ \
-	PLLP_2,			/* 	P Main PLL divider: PLL output clock frequency = VCO frequency / PLLP 
-						with PLLP = 2, 4, 6, or 8 */ \
-	84,				/* 	N Main PLL multiplier: VCO output frequency = VCO input frequency
-						× PLLN with 64 ≤ PLLN ≤ 432	 */ \
-	2				/* 	M VCO input frequency = PLL input clock frequency / PLLM with
-						2 ≤ PLLM ≤ 63 */
+const struct CLOCKS clocks = { \
+HSOSELECT_HSE_XTAL,	/* Select high speed osc: 0 = internal 16 MHz rc; 1 = external xtal controlled; 2 = ext input; 3 ext remapped xtal; 4 ext input */ \
+1,			/* Source for main PLL & audio PLLI2S: 0 = HSI, 1 = HSE selected */ \
+APBX_4,			/* APB1 clock = SYSCLK divided by 0,2,4,8,16; freq <= 42 MHz */ \
+APBX_2,			/* APB2 prescalar code = SYSCLK divided by 0,2,4,8,16; freq <= 84 MHz */ \
+AHB_1,			/* AHB prescalar code: SYSCLK/[2,4,8,16,32,64,128,256,512] (drives APB1,2 and HCLK) */ \
+8000000,		/* External Oscillator source frequency, e.g. 8000000 for an 8 MHz xtal on the external osc. */ \
+7,			/* Q (PLL) divider: USB OTG FS, SDIO, random number gen. USB OTG FS clock freq = VCO freq / PLLQ with 2 ≤ PLLQ ≤ 15 */ \
+PLLP_2,			/* P Main PLL divider: PLL output clock frequency = VCO frequency / PLLP with PLLP = 2, 4, 6, or 8 */ \
+84,			/* N Main PLL multiplier: VCO output frequency = VCO input frequency × PLLN with 64 ≤ PLLN ≤ 432	 */ \
+2			/* M VCO input frequency = PLL input clock frequency / PLLM with 2 ≤ PLLM ≤ 63 */
 };
 
 
@@ -191,8 +184,7 @@ char lcdLine3[LCDLINESIZE + 1];
 
 // SPI globals
 #define SPIPACE (168000000/200);	// Pace the output loop
-#define SPI2SIZE 3 	// Number of bytes in the transfer	
-char spi_ledout[SPI2SIZE] = {0xAA,0x55,0x31};	// Initial outgoing pattern
+char spi_ledout[SPI2SIZE] = {0xAA,0x55};	// Initial outgoing pattern
 char spi_swin[SPI2SIZE];
 u32	t_spi;
 
@@ -388,7 +380,7 @@ void initMasterController () {
 	spi2rw_init();
 
 	/* --------------------- ADC initialization ---------------------------------------------------------------------------- */
-	i = adc_mc_init_sequence();
+	int i = adc_mc_init_sequence();
 	if (i < 0)
 	{
 		xprintf (UXPRT, "ADC init failed with code: %i\n\r", i);	
@@ -424,7 +416,7 @@ while (1 == 1)
 			printf("%s\n\r", vv);
 
 			//	ADC
-			sprintf(vv, "Control Lever Output: %5d", adc_last_filtered[0]);
+			sprintf(vv, "Control Lever Output: %5d", (int) adc_last_filtered[0]);
 			lcd_printToLine(UARTLCD, 1, vv);
 			xprintf(UXPRT, "%5i: ", (cic_debug0 - cic_debug0_prev)); // Sequence number, number of filtered readings between xprintf's
 			cic_debug0_prev = cic_debug0;
@@ -552,8 +544,8 @@ done 	*/
 			t_lcd += LCDPACE;
 
 			snprintf(lcdLine0, 20, "%16s%4d", "Current State:", currentState);
-			snprintf(lcdLine1, 20, "outputTorque: %20f\0", outputTorque);
-			snprintf(lcdLine2, 20, "Time: %20d\0", currentTime);
+			snprintf(lcdLine1, 20, "outputTorque: %20f", outputTorque);
+			snprintf(lcdLine2, 20, "Time: %20d", (int) currentTime);
 
 			// padString(' ', lcdLine0, 20);
 			// padString(' ', lcdLine1, 20);
