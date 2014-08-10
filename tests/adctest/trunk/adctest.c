@@ -23,6 +23,7 @@ a push of the reset button to reset ADC/DMA hardware.
 
 */
 #include <fcntl.h>
+
 #include <unistd.h>
 #include <math.h>
 #include <string.h>
