@@ -12,7 +12,7 @@
 
 void lcd_init(int uartnumber) {
 	// 9600 baud
-	bsp_uart_int_init_number(uartnumber, 9600, 0, 20, 0xC0);
+	bsp_uart_int_init_number(uartnumber, 9600, 4, 128, 0xC0);
 
 	lcd_off(uartnumber);
 	lcd_on(uartnumber);
@@ -38,10 +38,24 @@ void lcd_off(int uartnumber) {
 
 void lcd_print(int uartnumber, char* p) 
 {
-	char vv[21];
-	strncpy(vv, p, 20);
-	vv[20] = 0;		//	insure string is null terminated
-	bsp_uart_puts_uartnum(uartnumber, p);
+	/*
+	char vv[LCDLINESIZE + 1];
+	strncpy(vv, p, LCDLINESIZE);
+	vv[LCDLINESIZE] = 0;		//	insure string is null terminated
+	bsp_uart_puts_uartnum(uartnumber, vv);
+	*/
+	int i;
+	for (i = 0; i < LCDLINESIZE; i++)
+	{
+		if (*p != 0) 
+		{
+			bsp_uart_putc_uartnum(uartnumber, *p++);			
+		}			
+		else
+		{
+			break;
+		}
+	}
 }
 
 void lcd_printToLine(int uartnumber, int line, char* p) {

@@ -8,6 +8,9 @@
 #ifndef __4X20LCD
 #define __4X20LCD
 
+/*	LCD Line Size  */
+#define LCDLINESIZE 20
+
 // initializes the lcd screen
 void lcd_init(int uartnumber);
 

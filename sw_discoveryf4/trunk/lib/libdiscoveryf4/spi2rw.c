@@ -62,8 +62,9 @@ void spi2rw_init(void)
 	f4gpiopins_Config ((volatile u32*)GPIOB, 13, (struct PINCONFIG*)&outputaf);	// SCK
 	f4gpiopins_Config ((volatile u32*)GPIOB, 14, (struct PINCONFIG*)&inputaf);	// MISO
 	f4gpiopins_Config ((volatile u32*)GPIOB, 15, (struct PINCONFIG*)&outputaf);	// MOSI
-
-	GPIO_BSRR(GPIOB)  = (1<<12);// Set /CS high
+	f4gpiopins_Config ((volatile u32*)GPIOE,  6, (struct PINCONFIG*)&outputcs);	// PWM_LED
+	GPIO_BSRR(GPIOE) = (1 << (6 + 16));		// Set LCD_PWM low initially
+	GPIO_BSRR(GPIOB)  = (1 << 12);			// Set /CS high
 
 	// Set divisor to max.  If APB1 is 42 Mhz, then divide by 256 = 164062.5 Hz, 48 us per byte
 /* NOTE: The following line is where the "phase" is set for the clock and polarity */

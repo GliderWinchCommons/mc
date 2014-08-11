@@ -26,11 +26,8 @@
 #include "libopencm3/stm32/f4/usart.h"	//	!!! May not be required
 #include "default_irq_handler.h"
 
-//	Added from adctest.c
 #include "libopencm3/stm32/f4/adc.h"
 #include "adc_mc.h"						//	!!! May not be required
-
-
 
 #include "libopencm3/stm32/f4/rcc.h"	//	!!!	May not be required
 #include "libopencm3/stm32/f4/gpio.h"
@@ -56,6 +53,8 @@
 
 
 static void canbuf_add(struct CANRCVBUF* p);
+
+void sprintbits(char* c, char* p);
 
 /* USART|UART assignment for xprintf and read/write */
 #define UARTLCD	6	// Uart number for LCD messages
@@ -162,7 +161,7 @@ char vv[128];	// sprintf buf
 
 // led timer
 u32	t_led;
-#define FLASHCOUNT (168000000/10);	// LED flash
+#define FLASHCOUNT (168000000/8);	// LED flash
 
 // 64th second counter
 u32 t_timeKeeper;
@@ -385,6 +384,11 @@ void initMasterController () {
 		xprintf (UXPRT, "ADC init failed with code: %i\n\r", i);	
 	}
 	xprintf (UXPRT, "   ADC Init Complete\n\r");
+
+	//lcd_printToLine(UARTLCD, 0, "test");
+
+	//while (1==1);
+	
 	
 
 	/* Setup STDOUT, STDIN (a shameful sequence until we sort out 'newlib' and 'fopen'.)  The following 'open' sets up 
@@ -408,17 +412,19 @@ extern int spidebug1;
 
 t_led = *(volatile unsigned int *)0xE0001004 + FLASHCOUNT;	//	initial t_led
 
+char cin[21] = "Sw: ";
+
 while (1 == 1) 
 {if (((int)(*(volatile unsigned int *)0xE0001004 - t_led)) > 0) // Has the time expired?
 		{ //	Time exprired
 
-			sprintf(vv, "Test Count: %4d", count);
-			if (count % 4 == 0) lcd_printToLine(UARTLCD, 0, vv);
+			sprintf(vv, "Test Count: %6d", count);
+			lcd_printToLine(UARTLCD, 0, vv);
 			printf("%s\n\r", vv);
 
 			//	ADC
-			sprintf(vv, "CL: %5d  %5d", (int) adc_last_filtered[0], count);
-			if (count % 4 == 1) lcd_printToLine(UARTLCD, 1, vv);
+			sprintf(vv, "CL:  %5d  %6d", (int) adc_last_filtered[0], count);
+			lcd_printToLine(UARTLCD, 1, vv);
 			xprintf(UXPRT, "%5d  %5i: ", (cic_debug0 - cic_debug0_prev), count); // Sequence number, number of filtered readings between xprintf's
 			cic_debug0_prev = cic_debug0;
 
@@ -432,15 +438,16 @@ while (1 == 1)
 				spi2_rw(bout, bin, SPI2SIZE); // Send/rcv SPI2SIZE bytes
 				bout[0] ^=  0xff;
 				bout[1] ^=  0xff;
+				sprintbits(&cin[4], bin);
+
 			}
-			sprintf(vv, "Sw:.. Count: %3d", count);
-			if (count % 4 == 0) lcd_printToLine(UARTLCD, 2, vv);
+			lcd_printToLine(UARTLCD, 2, cin);
 
 			xprintf(UXPRT,"%5u ", spidebug1);
 			printbits(bin); // Print the bits			
 
-			sprintf(vv, "Ln 4, Count: %3d", count);
-			if (count % 4 == 1) lcd_printToLine(UARTLCD, 3, vv);	
+			sprintf(vv, "Ln 4; Count: %5d", count);
+			lcd_printToLine(UARTLCD, 3, vv);	
 
 			count++;
 
@@ -762,6 +769,7 @@ static void canbuf_add(struct CANRCVBUF* p)
  ******************************************************************************/
 void printbits(char* p)
 {
+	//	Kludged function diplay switches on LCD
 	int i,j;
 	char c;
 
@@ -780,5 +788,28 @@ void printbits(char* p)
 	}
 
 	xprintf (UXPRT,"\n\r");
+	return;
+}
+
+void sprintbits(char* c, char* p)
+{
+	int i, j;
+	int k = 0;
+	
+
+	/* Print out the bits for the incoming bytes */
+	for (j = 0; j < SPI2SIZE; j++) // For each byte in the cycle
+	{
+		for (i = 0; i < 8; i++) // For each bit within a byte
+		{
+			if ( (*p & (1<<i)) == 0) 
+				c[k] = '.';	// Symbol for "zero"
+			else
+				c[k] = '1';	// Symbol for "one"
+			k++;
+		}
+		p++;
+		c[k] = 0;
+	}
 	return;
 }
