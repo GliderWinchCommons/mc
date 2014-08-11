@@ -38,23 +38,11 @@ void lcd_off(int uartnumber) {
 
 void lcd_print(int uartnumber, char* p) 
 {
-	/*
-	char vv[LCDLINESIZE + 1];
-	strncpy(vv, p, LCDLINESIZE);
-	vv[LCDLINESIZE] = 0;		//	insure string is null terminated
-	bsp_uart_puts_uartnum(uartnumber, vv);
-	*/
 	int i;
 	for (i = 0; i < LCDLINESIZE; i++)
 	{
-		if (*p != 0) 
-		{
-			bsp_uart_putc_uartnum(uartnumber, *p++);			
-		}			
-		else
-		{
-			break;
-		}
+		if (*p == 0) break;
+		bsp_uart_putc_uartnum(uartnumber, *p++);			
 	}
 }
 
