@@ -51,6 +51,8 @@
 #include "CAN_error_msgs.h"
 #include "spi2rw.h"
 
+#include "mccp.h"
+
 
 static void canbuf_add(struct CANRCVBUF* p);
 
@@ -396,6 +398,81 @@ void initMasterController () {
 	fd = open("tty2", 0,0); // This sets up the uart control block pointer versus file descriptor ('fd')
 
 
+//	code for calibrating scale and offset for the control lever
+//	make function later
+
+
+#define FSCL	(1 << 11) - 1	//	full scale control lever (CL) output
+#define CLREST 1 << 11 			//	SPI bit position for CL rest position switch
+#define CLFS  1 << 8 			//	SPI bit position for CL full scale position
+#define CL_ADC_CHANNEL 	0
+
+int cal_cl;						//	calibrated control lever output
+int cloffset = 0, clmax = 0;	//	Min and maximum values observed for control lever
+int clscale;					// scale value for generating calibrated output
+int clcalstate = 0;				//	state for control lever intial calibration
+
+while(calstate < 6)
+{
+	if (((int)(*(volatile unsigned int *)0xE0001004 - t_led)) > 0) // Has the time expired?
+	{ //	Time exprired
+		//	read filtered control lever adc last value and update min and max values
+		adc_tmp = adc_last_filtered[CL_ADC_CHANNEL];
+		cloffset = (clmin < adc_tmp) ? cloffset : adc_tmp;
+		clmax = (clmax > adc_tmp) ? clmax : adc_tmp;
+		//	Read SPI switches
+		if (spi2_busy() != 0) // Is SPI2 busy?
+		{ // SPI completed  
+			spi2_rw(bout, bin, SPI2SIZE); // Send/rcv SPI2SIZE bytes				
+		}
+		switch(clccalstate)
+		{				
+			case 0:	//	entry state
+			{
+				sprintf(vv, "Cycle control lever twice");
+				lcd_printToLine(UARTLCD, 0, vv);
+				clccalstate = 1;
+			case 1:	// waiting for CL in rest position	
+			{
+				if (bin & CLREST) break;
+				clccalstate = 2;
+				clmin = clmax = adc_tmp;	//	reset min and max values
+				break;
+			}
+			case 2:	//	waiting for full scale position first time
+			{
+				if !(bin & CLFS) clccalstate = 3;					
+				break;
+			}
+			case 3:	//	wating for return to rest first time
+			{
+				if !(bin & CLREST) clccalstate = 4;
+				break:
+			}
+			case 4:	//	waiting for full scale second time
+			{
+				if !(bin & CLFS) clccalstate = 5;					
+				break;
+			}
+			case 5:	//	waiting for return to rest second time
+			{
+				if (bin & CLREST) break;
+				clscale = (1 << 15) * FSCL / (clmax - clmin);
+				clccalstate = 6; 
+			}
+		}
+		toggle_4leds(); 		// Advance some LED pattern
+		t_led += FLASHCOUNT; 	// Set next toggle time
+	}
+}
+
+
+
+
+
+
+
+
 /*	Temporary code for testing UARTs, LCD, ADCs, SPI2*/
 int count = 0;
 
@@ -423,7 +500,8 @@ while (1 == 1)
 			printf("%s\n\r", vv);
 
 			//	ADC
-			sprintf(vv, "CL:  %5d  %6d", (int) adc_last_filtered[0], count);
+			cal_cl = ((adc_last_filtered[CL_ADC_CHANNEL] - cloffset) * clscale) << 16;
+			sprintf(vv, "CL:  %5d  %6d", (int) adc_last_filtered[CL_ADC_CHANNEL], cal_cl);
 			lcd_printToLine(UARTLCD, 1, vv);
 			xprintf(UXPRT, "%5d  %5i: ", (cic_debug0 - cic_debug0_prev), count); // Sequence number, number of filtered readings between xprintf's
 			cic_debug0_prev = cic_debug0;
