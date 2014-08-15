@@ -376,6 +376,8 @@ void initMasterController () {
 	xprintf (UXPRT, " sysclk_freq (MHz) : %9u...............................\n\r",sysclk_freq/1000000);
 
 	/* --------------------- Initialize SPI2 ------------------------------------------------------------------------------- */
+	char bout[SPI2SIZE] = {0x55,0xAA};	// Initial outgoing pattern {0x00, 0x00}
+	char bin[SPI2SIZE];
 	spi2rw_init();
 	xprintf (UXPRT, "   SPI Init Complete\n\r");
 
@@ -387,10 +389,6 @@ void initMasterController () {
 	}
 	xprintf (UXPRT, "   ADC Init Complete\n\r");
 
-	//lcd_printToLine(UARTLCD, 0, "test");
-
-	//while (1==1);
-	
 	
 
 	/* Setup STDOUT, STDIN (a shameful sequence until we sort out 'newlib' and 'fopen'.)  The following 'open' sets up 
@@ -401,76 +399,105 @@ void initMasterController () {
 //	code for calibrating scale and offset for the control lever
 //	make function later
 
+void single_beep(void)
+{
+//	Place holder for single CP beep
+}
 
-#define FSCL	(1 << 11) - 1	//	full scale control lever (CL) output
-#define CLREST 1 << 11 			//	SPI bit position for CL rest position switch
-#define CLFS  1 << 8 			//	SPI bit position for CL full scale position
+void double_beep(void)
+{
+//	Place holder for double CP beep
+}
+
+#define FSCL	((1 << 12) - 1)	//	full scale control lever (CL) output
+#define CLREST (1 << 12) 		//	SPI bit position for CL rest position switch
+#define CLFS  (1 << 15) 		//	SPI bit position for CL full scale position
 #define CL_ADC_CHANNEL 	0
 
 int cal_cl;						//	calibrated control lever output
 int cloffset = 0, clmax = 0;	//	Min and maximum values observed for control lever
-int clscale;					// scale value for generating calibrated output
+int clscale = 0;					// scale value for generating calibrated output
 int clcalstate = 0;				//	state for control lever intial calibration
+int adc_tmp;
+int sw = 0;						//	binary for holding switch values
 
-while(calstate < 6)
+t_led = *(volatile unsigned int *)0xE0001004 + FLASHCOUNT;	//	initial t_led
+
+while(clcalstate < 6)
 {
 	if (((int)(*(volatile unsigned int *)0xE0001004 - t_led)) > 0) // Has the time expired?
-	{ //	Time exprired
+	{ //	Time expired
+		xprintf(UXPRT, "%5u %8x \n\r", clcalstate, sw);
 		//	read filtered control lever adc last value and update min and max values
 		adc_tmp = adc_last_filtered[CL_ADC_CHANNEL];
-		cloffset = (clmin < adc_tmp) ? cloffset : adc_tmp;
+		cloffset = (cloffset < adc_tmp) ? cloffset : adc_tmp;
 		clmax = (clmax > adc_tmp) ? clmax : adc_tmp;
 		//	Read SPI switches
 		if (spi2_busy() != 0) // Is SPI2 busy?
 		{ // SPI completed  
-			spi2_rw(bout, bin, SPI2SIZE); // Send/rcv SPI2SIZE bytes				
-		}
-		switch(clccalstate)
-		{				
-			case 0:	//	entry state
-			{
-				sprintf(vv, "Cycle control lever twice");
-				lcd_printToLine(UARTLCD, 0, vv);
-				clccalstate = 1;
-			case 1:	// waiting for CL in rest position	
-			{
-				if (bin & CLREST) break;
-				clccalstate = 2;
-				clmin = clmax = adc_tmp;	//	reset min and max values
-				break;
-			}
-			case 2:	//	waiting for full scale position first time
-			{
-				if !(bin & CLFS) clccalstate = 3;					
-				break;
-			}
-			case 3:	//	wating for return to rest first time
-			{
-				if !(bin & CLREST) clccalstate = 4;
-				break:
-			}
-			case 4:	//	waiting for full scale second time
-			{
-				if !(bin & CLFS) clccalstate = 5;					
-				break;
-			}
-			case 5:	//	waiting for return to rest second time
-			{
-				if (bin & CLREST) break;
-				clscale = (1 << 15) * FSCL / (clmax - clmin);
-				clccalstate = 6; 
-			}
+			spi2_rw(bout, bin, SPI2SIZE); // Send/rcv SPI2SIZE bytes
+			sw = (((int) bin[0]) << 8) | (int) bin[1];				
+			switch(clcalstate)
+			{				
+				case 0:	//	entry state
+				{
+					sprintf(vv, "Cycle control lever");
+					lcd_printToLine(UARTLCD, 0, vv);
+					sprintf(vv, "twice:");
+					lcd_printToLine(UARTLCD, 1, vv);
+					double_beep();
+					clcalstate = 1;
+				}
+				case 1:	// waiting for CL to rest position	
+				{
+					if (sw & CLREST) break;
+					clcalstate = 2;
+					cloffset = clmax = adc_tmp;	//	reset min and max values
+					sprintf(vv, "twice: 0");
+					lcd_printToLine(UARTLCD, 1, vv);
+					break;
+				}
+				case 2:	//	waiting for full scale position first time
+				{
+					if (!(sw & CLFS)) clcalstate = 3;					
+					break;
+				}
+				case 3:	//	wating for return to rest first time
+				{
+					if (sw & CLREST) break; 
+						{
+							clcalstate = 4;
+							sprintf(vv, "twice: 1");
+							lcd_printToLine(UARTLCD, 1, vv);
+							single_beep();
+							break;
+						}
+				}
+				case 4:	//	waiting for full scale second time
+				{
+					if (!(sw & CLFS)) clcalstate = 5;					
+					break;
+				}
+				case 5:	//	waiting for return to rest second time
+				{
+					if (sw & CLREST) break;
+					clscale = (FSCL  << 16) / (clmax - cloffset);
+					lcd_clear(UARTLCD);
+					single_beep();
+					clcalstate = 6; 
+				}
+			}			
 		}
 		toggle_4leds(); 		// Advance some LED pattern
-		t_led += FLASHCOUNT; 	// Set next toggle time
+		t_led += FLASHCOUNT; 	// Set next toggle time		
 	}
 }
+xprintf (UXPRT, "   Control Lever Initial Calibration Complete\n\r");
 
 
-
-
-
-
+xprintf(UXPRT, "%10d %10d %10d \n\r", cloffset, clmax, clscale);
+//while (1 == 1)
+//{}
 
 
 /*	Temporary code for testing UARTs, LCD, ADCs, SPI2*/
@@ -478,16 +505,13 @@ int count = 0;
 
 extern u32 cic_debug0;	// counter in adc_mc.c
 u32 cic_debug0_prev = 0; // Used to take difference between new and "previous" counts
-char bout[SPI2SIZE] = {0x55,0xAA};	// Initial outgoing pattern {0x00, 0x00}
-char bin[SPI2SIZE];
+
 
 
 void printbits(char* p);
 
 
 extern int spidebug1;
-
-t_led = *(volatile unsigned int *)0xE0001004 + FLASHCOUNT;	//	initial t_led
 
 char cin[21] = "Sw: ";
 
@@ -500,10 +524,10 @@ while (1 == 1)
 			printf("%s\n\r", vv);
 
 			//	ADC
-			cal_cl = ((adc_last_filtered[CL_ADC_CHANNEL] - cloffset) * clscale) << 16;
-			sprintf(vv, "CL:  %5d  %6d", (int) adc_last_filtered[CL_ADC_CHANNEL], cal_cl);
+			cal_cl = ((adc_last_filtered[CL_ADC_CHANNEL] - cloffset) * clscale) >> 16;
+			sprintf(vv, "CL: %5d  %5d", (int) adc_last_filtered[CL_ADC_CHANNEL], cal_cl);
 			lcd_printToLine(UARTLCD, 1, vv);
-			xprintf(UXPRT, "%5d  %5i: ", (cic_debug0 - cic_debug0_prev), count); // Sequence number, number of filtered readings between xprintf's
+			xprintf(UXPRT, "%5d  %5d: ", (cic_debug0 - cic_debug0_prev), count); // Sequence number, number of filtered readings between xprintf's
 			cic_debug0_prev = cic_debug0;
 
 			for (i = 0; i < NUMBERADCCHANNELS_MC; i++)	// Loop through the three ADC channels
