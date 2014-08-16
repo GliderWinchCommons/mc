@@ -409,6 +409,11 @@ void double_beep(void)
 //	Place holder for double CP beep
 }
 
+void tripple_beep(void)
+{
+//	Place holder for double CP beep
+}
+
 #define FSCL	((1 << 12) - 1)	//	full scale control lever (CL) output
 #define CLREST (1 << 11) 		//	SPI bit position for CL rest position switch
 #define CLFS  (1 << 8) 		//	SPI bit position for CL full scale position
@@ -423,6 +428,7 @@ int sw = 0;						//	binary for holding switch values
 
 t_led = *(volatile unsigned int *)0xE0001004 + FLASHCOUNT;	//	initial t_led
 
+GPIO_BSRR(GPIOA) = 1 << 8;	// Turn on beeper
 while(clcalstate < 6)
 {
 	if (((int)(*(volatile unsigned int *)0xE0001004 - t_led)) > 0) // Has the time expired?
@@ -493,6 +499,7 @@ while(clcalstate < 6)
 	}
 }
 xprintf (UXPRT, "   Control Lever Initial Calibration Complete\n\r");
+GPIO_BSRR(GPIOA) = 1 << (8 + 16);	// Turn off beeper
 
 xprintf(UXPRT, "%10d %10d %10d \n\r", cloffset, clmax, clscale);
 

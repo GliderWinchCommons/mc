@@ -66,6 +66,11 @@ void spi2rw_init(void)
 	GPIO_BSRR(GPIOE) = (1 << (6 + 16));		// Set LCD_PWM low initially, later connect to PWM
 	GPIO_BSRR(GPIOB)  = (1 << 12);			// Set /CS high
 
+//	temporary activate beeper 
+	f4gpiopins_Config ((volatile u32*)GPIOA,  8, (struct PINCONFIG*)&outputcs);	// Beeper
+	GPIO_BSRR(GPIOA) = (1 << (8 + 16));		
+
+
 	// Set divisor to max.  If APB1 is 42 Mhz, then divide by 256 = 164062.5 Hz, 48 us per byte
 /* NOTE: The following line is where the "phase" is set for the clock and polarity */
 	//          (SSM SSI)  |enable peripheral | baud divisor | master select | CK 1 when idle | phase  | lsb first
