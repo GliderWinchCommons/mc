@@ -437,7 +437,8 @@ while(clcalstate < 6)
 		if (spi2_busy() != 0) // Is SPI2 busy?
 		{ // SPI completed  
 			spi2_rw(spi_ledout, spi_swin, SPI2SIZE); // Send/rcv SPI2SIZE bytes
-			sw = (((int) spi_swin[0]) << 8) | (int) bin[1];				
+			//	convert to a binary word for comparisons (not general)
+			sw = (((int) spi_swin[0]) << 8) | (int) spi_swin[1];				
 			switch(clcalstate)
 			{				
 				case 0:	//	entry state
