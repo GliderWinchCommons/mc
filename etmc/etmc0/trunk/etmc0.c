@@ -410,8 +410,8 @@ void double_beep(void)
 }
 
 #define FSCL	((1 << 12) - 1)	//	full scale control lever (CL) output
-#define CLREST (1 << 12) 		//	SPI bit position for CL rest position switch
-#define CLFS  (1 << 15) 		//	SPI bit position for CL full scale position
+#define CLREST (1 << 11) 		//	SPI bit position for CL rest position switch
+#define CLFS  (1 << 8) 		//	SPI bit position for CL full scale position
 #define CL_ADC_CHANNEL 	0
 
 int cal_cl;						//	calibrated control lever output
@@ -494,10 +494,7 @@ while(clcalstate < 6)
 }
 xprintf (UXPRT, "   Control Lever Initial Calibration Complete\n\r");
 
-
 xprintf(UXPRT, "%10d %10d %10d \n\r", cloffset, clmax, clscale);
-//while (1 == 1)
-//{}
 
 
 /*	Temporary code for testing UARTs, LCD, ADCs, SPI2*/
@@ -884,7 +881,7 @@ static void canbuf_add(struct CANRCVBUF* p)
 	{
 		for (i = 0; i < 8; i++) // For each bit within a byte
 		{
-			if ( (*p & (1<<i)) == 0) 
+			if ( (*p & ((1 << 7)  >> i)) == 0) 
 				c = '.';	// Symbol for "zero"
 			else
 				c = '1';	// Symbol for "one"
@@ -892,7 +889,6 @@ static void canbuf_add(struct CANRCVBUF* p)
 		}
 		p++;
 	}
-
 	xprintf (UXPRT,"\n\r");
 	return;
 }
@@ -915,6 +911,7 @@ void sprintbits(char* c, char* p)
 			else
 				c[k--] = '1';	// Symbol for "one"
 		}
+		p++;
 	}
 	return;
 }
