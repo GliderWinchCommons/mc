@@ -65,11 +65,6 @@ void sprintbits(char* c, char* p);
 
 #define UXPRT UARTGPS	//	Debugging port
 
-/*	LCD Line Size  */
-#define LCDLINESIZE 20
-
-// Number of bytes in the SPI transfer	
-#define SPI2SIZE 2 	
 
 
 /* &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&& */
@@ -89,6 +84,7 @@ APB2    =   84 MHz
 
 NOTE: PLL48CK must be 48 MHz for the USB
 */
+
 
 const struct CLOCKS clocks = { \
 HSOSELECT_HSE_XTAL,	/* Select high speed osc: 0 = internal 16 MHz rc; 1 = external xtal controlled; 2 = ext input; 3 ext remapped xtal; 4 ext input */ \
@@ -163,26 +159,27 @@ char vv[128];	// sprintf buf
 
 // led timer
 u32	t_led;
-#define FLASHCOUNT (168000000/8);	// LED flash
+#define FLASHCOUNT (sysclk_freq/8);	// LED flash
 
 // 64th second counter
 u32 t_timeKeeper;
-#define SIXTYFOURTH (168000000/64);
+#define SIXTYFOURTH (sysclk_freq/64);
 u8 count64 = 0;
 u32 currentTime = 0;
 u8 timerMsgFlag = 0;
 
 // lcd
 u32 t_lcd;
-#define LCDPACE (168000000/10);
+#define LCDPACE (sysclk_freq/10);
 
+
+//	make this a 2D array later
 char lcdLine0[LCDLINESIZE + 1];
 char lcdLine1[LCDLINESIZE + 1];
 char lcdLine2[LCDLINESIZE + 1];
 char lcdLine3[LCDLINESIZE + 1];
 
 // SPI globals
-#define SPIPACE (168000000/200);	// Pace the output loop
 char spi_ledout[SPI2SIZE] = {0xAA,0x55};	// Initial outgoing pattern
 char spi_swin[SPI2SIZE];
 u32	t_spi;
@@ -316,7 +313,7 @@ void toggle_4leds (void)
 		GPIO_BSRR(GPIOD) = (1<<lednum);	// Set bit
 	}
 	else
-	{ // HEre, LED bit was on
+	{ // Here, LED bit was on
 		GPIO_BSRR(GPIOD) = (1<<(lednum+16));	// Reset bit
 	}
 	lednum += 1;		// Step through all four LEDs
@@ -376,8 +373,6 @@ void initMasterController () {
 	xprintf (UXPRT, " sysclk_freq (MHz) : %9u...............................\n\r",sysclk_freq/1000000);
 
 	/* --------------------- Initialize SPI2 ------------------------------------------------------------------------------- */
-	char bout[SPI2SIZE] = {0x55,0xAA};	// Initial outgoing pattern {0x00, 0x00}
-	char bin[SPI2SIZE];
 	spi2rw_init();
 	xprintf (UXPRT, "   SPI Init Complete\n\r");
 
@@ -441,8 +436,8 @@ while(clcalstate < 6)
 		//	Read SPI switches
 		if (spi2_busy() != 0) // Is SPI2 busy?
 		{ // SPI completed  
-			spi2_rw(bout, bin, SPI2SIZE); // Send/rcv SPI2SIZE bytes
-			sw = (((int) bin[0]) << 8) | (int) bin[1];				
+			spi2_rw(spi_ledout, spi_swin, SPI2SIZE); // Send/rcv SPI2SIZE bytes
+			sw = (((int) spi_swin[0]) << 8) | (int) bin[1];				
 			switch(clcalstate)
 			{				
 				case 0:	//	entry state
@@ -541,16 +536,16 @@ while (1 == 1)
 			
 			if (spi2_busy() != 0) // Is SPI2 busy?
 			{ // SPI completed  
-				spi2_rw(bout, bin, SPI2SIZE); // Send/rcv SPI2SIZE bytes
-				bout[0] ^=  0xff;
-				bout[1] ^=  0xff;
-				sprintbits(&cin[4], bin);
+				spi2_rw(spi_ledout, spi_swin, SPI2SIZE); // Send/rcv SPI2SIZE bytes
+				spi_ledout[0] ^=  0xff;
+				spi_ledout[1] ^=  0xff;
+				sprintbits(&cin[4], spi_swin);
 
 			}
 			lcd_printToLine(UARTLCD, 2, cin);
 
 			xprintf(UXPRT,"%5u ", spidebug1);
-			printbits(bin); // Print the bits			
+			printbits(spi_swin); // Print the bits			
 
 			sprintf(vv, "Ln 4; Count: %5d", count);
 			lcd_printToLine(UARTLCD, 3, vv);	

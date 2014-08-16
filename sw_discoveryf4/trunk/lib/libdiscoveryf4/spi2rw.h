@@ -17,6 +17,11 @@
  The higher the priority number, the lower the priority */
 #define SPI2_PRIORITY		0x50	// Interrupt priority for SPI2 interrupt
 
+// Number of bytes in the SPI transfer	
+#define SPI2SIZE 2 	
+
+#define SPIPACE (168000000/200);	// Pace the output loop
+
 /******************************************************************************/
 void spi2rw_init(void);
 /*  @brief Initialize SPI 
