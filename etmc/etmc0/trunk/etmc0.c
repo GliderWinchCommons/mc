@@ -23,13 +23,11 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/fcntl.h>
-#include "libopencm3/stm32/f4/usart.h"	//	!!! May not be required
-#include "default_irq_handler.h"
 
 #include "libopencm3/stm32/f4/adc.h"
-#include "adc_mc.h"						//	!!! May not be required
+#include "adc_mc.h"						
 
-#include "libopencm3/stm32/f4/rcc.h"	//	!!!	May not be required
+//#include "libopencm3/stm32/f4/rcc.h"	//	!!!	May not be required
 #include "libopencm3/stm32/f4/gpio.h"
 #include "libopencm3/stm32/f4/scb.h"
 
