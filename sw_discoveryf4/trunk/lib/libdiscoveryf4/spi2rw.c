@@ -63,13 +63,16 @@ void spi2rw_init(void)
 	f4gpiopins_Config ((volatile u32*)GPIOB, 14, (struct PINCONFIG*)&inputaf);	// MISO
 	f4gpiopins_Config ((volatile u32*)GPIOB, 15, (struct PINCONFIG*)&outputaf);	// MOSI
 	f4gpiopins_Config ((volatile u32*)GPIOE,  6, (struct PINCONFIG*)&outputcs);	// PWM_LED
-	GPIO_BSRR(GPIOE) = (1 << (6 + 16));		// Set LCD_PWM low initially
+	GPIO_BSRR(GPIOE) = (1 << (6 + 16));		// Set LCD_PWM low initially, later connect to PWM
 	GPIO_BSRR(GPIOB)  = (1 << 12);			// Set /CS high
 
 	// Set divisor to max.  If APB1 is 42 Mhz, then divide by 256 = 164062.5 Hz, 48 us per byte
 /* NOTE: The following line is where the "phase" is set for the clock and polarity */
-	//          (SSM SSI)  |enable peripheral | baud divisor | master select | CK 1 when idle    | phase  | lsb first)
-	SPI2_CR1 =  (0x3 << 8) |   (1 << 6)       | (0x7 << 3)   |   (1 << 2)    |    (1 << 1)       |  0x01  | (1 << 7)  ;
+	//          (SSM SSI)  |enable peripheral | baud divisor | master select | CK 1 when idle | phase  | lsb first
+//	for lsb first
+//	SPI2_CR1 =  (0x3 << 8) |   (1 << 6)       | (0x7 << 3)   |   (1 << 2)    |    (1 << 1)    |  0x01  | (1 << 7)  ;
+//	for msb first	
+	SPI2_CR1 =  (0x3 << 8) |   (1 << 6)       | (0x7 << 3)   |   (1 << 2)    |    (1 << 1)    |  0x01 ;
 	
 	/* SPI-CR2 use default, no interrupt masks enabled at this point */
 

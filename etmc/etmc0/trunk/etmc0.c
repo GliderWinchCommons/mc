@@ -866,16 +866,20 @@ static void canbuf_add(struct CANRCVBUF* p)
 	return;
 }
 
+
+
+
+
 /******************************************************************************
  * Print out the bits for the array
  ******************************************************************************/
-void printbits(char* p)
+ void printbits(char* p)
 {
 	//	Kludged function diplay switches on LCD
 	int i,j;
 	char c;
 
-	/* Print out the bits for the incoming bytes */
+	// Print out the bits for the incoming bytes
 	for (j = 0; j < SPI2SIZE; j++) // For each byte in the cycle
 	{
 		for (i = 0; i < 8; i++) // For each bit within a byte
@@ -896,22 +900,22 @@ void printbits(char* p)
 void sprintbits(char* c, char* p)
 {
 	int i, j;
-	int k = 0;
+	int k;
 	
 
-	/* Print out the bits for the incoming bytes */
+	//	produce string output of the bits for the incoming bytes
+	c[SPI2SIZE * 8] = 0;
 	for (j = 0; j < SPI2SIZE; j++) // For each byte in the cycle
 	{
+		k = j * 8 + 7;
 		for (i = 0; i < 8; i++) // For each bit within a byte
 		{
 			if ( (*p & (1<<i)) == 0) 
-				c[k] = '.';	// Symbol for "zero"
+				c[k--] = '.';	// Symbol for "zero"
 			else
-				c[k] = '1';	// Symbol for "one"
-			k++;
+				c[k--] = '1';	// Symbol for "one"
 		}
-		p++;
-		c[k] = 0;
 	}
 	return;
 }
+
