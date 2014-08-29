@@ -70,6 +70,7 @@ void sprintbits(char* c, char* p);
 #define IAMUNITNUMBER	CAN_UNITID_GATE2	// PC<->CAN bus gateway
 /* &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&& */
 
+#define sys_timer *(volatile unsigned int *)0xE0001004
 
 /* The following values provide --
 External 8 MHz xtal
@@ -161,8 +162,9 @@ u32	t_led;
 
 // 64th second counter
 u32 t_timeKeeper;
-#define SIXTYFOURTH (sysclk_freq/64);
-u8 count64 = 0;
+#define TICS_PER_SECOND 64
+#define MC_TIC (sysclk_freq/TICS_PER_SECOND)
+u8 mc_tic_cnt = 0;
 u32 currentTime = 0;
 u8 timerMsgFlag = 0;
 
@@ -394,37 +396,40 @@ void initMasterController () {
 
 void single_beep(void)
 {
-//	Place holder for single CP beep
+	//	Place holder for single CP beep
+	//	Signals normal transition
 }
 
 void double_beep(void)
 {
-//	Place holder for double CP beep
+	//	Place holder for double CP beep
+	//	Signals operator action needed
 }
 
 void tripple_beep(void)
 {
-//	Place holder for double CP beep
+	//	Place holder for double CP beep
+	//	Signals serious error condition
 }
 
 #define FSCL	((1 << 12) - 1)	//	full scale control lever (CL) output
-#define CLREST (1 << 11) 		//	SPI bit position for CL rest position switch
-#define CLFS  (1 << 8) 		//	SPI bit position for CL full scale position
+#define CLREST (1 << 11) 			//	SPI bit position for CL rest position switch
+#define CLFS  (1 << 8) 				//	SPI bit position for CL full scale position
 #define CL_ADC_CHANNEL 	0
 
-int cal_cl;						//	calibrated control lever output
+int cal_cl;							//	calibrated control lever output
 int cloffset = 0, clmax = 0;	//	Min and maximum values observed for control lever
 int clscale = 0;					// scale value for generating calibrated output
 int clcalstate = 0;				//	state for control lever intial calibration
 int adc_tmp;
-int sw = 0;						//	binary for holding switch values
+int sw = 0;							//	binary for holding switch values
 
-t_led = *(volatile unsigned int *)0xE0001004 + FLASHCOUNT;	//	initial t_led
+t_led = sys_timer + FLASHCOUNT;	//	initial t_led
 
-GPIO_BSRR(GPIOA) = 1 << 8;	// Turn on beeper
+//GPIO_BSRR(GPIOA) = 1 << 8;	// Turn on beeper
 while(clcalstate < 6)
 {
-	if (((int)(*(volatile unsigned int *)0xE0001004 - t_led)) > 0) // Has the time expired?
+	if (((int)(sys_timer - t_led)) > 0) // Has the time expired?
 	{ //	Time expired
 		xprintf(UXPRT, "%5u %8x \n\r", clcalstate, sw);
 		//	read filtered control lever adc last value and update min and max values
@@ -493,7 +498,7 @@ while(clcalstate < 6)
 	}
 }
 xprintf (UXPRT, "   Control Lever Initial Calibration Complete\n\r");
-GPIO_BSRR(GPIOA) = 1 << (8 + 16);	// Turn off beeper
+//GPIO_BSRR(GPIOA) = 1 << (8 + 16);	// Turn off beeper
 
 xprintf(UXPRT, "%10d %10d %10d \n\r", cloffset, clmax, clscale);
 
@@ -514,7 +519,7 @@ extern int spidebug1;
 char cin[21] = "Sw: ";
 
 while (1 == 1) 
-{if (((int)(*(volatile unsigned int *)0xE0001004 - t_led)) > 0) // Has the time expired?
+{if (((int)(sys_timer - t_led)) > 0) // Has the time expired?
 		{ //	Time exprired
 
 			sprintf(vv, "Test Count: %6d", count);
@@ -557,7 +562,7 @@ while (1 == 1)
 
 }
 
-/*	!!!	Should this be moved to init function once it is needed?  Looks like several things below here are already
+/*	!!!	This will be moved to init function once it is needed?  Looks like several things below here are already
 done 	*/
 
 	/* --------------------- CAN setup ------------------------------------------------------------------- */
@@ -594,7 +599,7 @@ done 	*/
 			panic_leds(7);	while (1==1);	// Flash panic display with code 7
 		}
 	/* --------------------- Hardware is ready, so do program-specific startup ---------------------------- */
-		t_led = *(volatile unsigned int *)0xE0001004 + FLASHCOUNT; // Set initial time
+		t_led = sys_timer + FLASHCOUNT; // Set initial time
 
 		PC_msg_initg(&pctogateway);	// Initialize struct for CAN message from PC
 		PC_msg_initg(&gatewayToPC);	// Initialize struct for CAN message from PC
@@ -604,13 +609,13 @@ done 	*/
 		gatewayToPC.mode_link = MODE_LINK;
 	
 	/* --------------------- LCD ---------------------------------------------------------------------------- */
-		t_lcd = *(volatile unsigned int *)0xE0001004 + LCDPACE;
+		t_lcd = sys_timer + LCDPACE;
 }
 
 // main loop functions
 	/* Flash the red LED to amuse the hapless Op or signal the wizard programmer that the loop is running. */
 	void ledHeartbeat () {
-		if (((int)(*(volatile unsigned int *)0xE0001004 - t_led)) > 0) // Has the time expired?
+		if (((int)(sys_timer - t_led)) > 0) // Has the time expired?
 		{ // Here, yes.
 			t_led += FLASHCOUNT; 	// Set next toggle time
 
@@ -620,15 +625,15 @@ done 	*/
 
 	/* function to find the 64th second beats */
 	void timeKeeper () {
-		if (((int)(*(volatile unsigned int *)0xE0001004 - t_timeKeeper)) > 0) // Has the time expired?
+		if (((int)(sys_timer - t_timeKeeper)) > 0) // Has the time expired?
 		{ // Here, yes.
-			t_timeKeeper += SIXTYFOURTH; 	// Set next toggle time
+			t_timeKeeper += MC_TIC; 	// Set next toggle time
 
-			count64++;
+			mc_tic_cnt++;
 
-			if(count64 == 64) {
+			if(mc_tic_cnt == TICS_PER_SECOND) {
 				currentTime++;
-				count64 = 0;
+				mc_tic_cnt = 0;
 				timerMsgFlag = 2; // send 1 sec message
 			} else {
 				timerMsgFlag = 1; // send 1/64th sec message
@@ -638,7 +643,7 @@ done 	*/
 
 	/* spi i/o */
 	void spiInOut () {
-		if (((int)(*(volatile unsigned int *)0xE0001004 - t_spi)) > 0) {
+		if (((int)(sys_timer - t_spi)) > 0) {
 			t_spi += SPIPACE;
 
 			if (spi2_busy() != 0) // Is SPI2 busy?
@@ -650,7 +655,7 @@ done 	*/
 
 	/* LCD output routine */
 	void lcdOut () {
-		if (((int)(*(volatile unsigned int *)0xE0001004 - t_lcd)) > 0) {
+		if (((int)(sys_timer - t_lcd)) > 0) {
 			t_lcd += LCDPACE;
 
 			snprintf(lcdLine0, 20, "%16s%4d", "Current State:", currentState);
@@ -778,7 +783,7 @@ done 	*/
 		if (timerMsgFlag == 1) { // every 1/64 second
 			can.id       = 0x20000000; // time id
 			can.dlc      = 0x00000001;
-			can.cd.us[0] = count64;
+			can.cd.us[0] = mc_tic_cnt;
 
 			tmp = CAN_gateway_send(&can);
 			canbuf_add(&can);
@@ -807,15 +812,67 @@ done 	*/
 
 /*#################################################################################################
 And now for the main routine 
-  #################################################################################################*/
+
+
+/#################################################################################################*/
+//	The following log2 scalings are used for master controller representations and may be different
+//	from CANbus scalings.  Log2 allows many scalings to be preformed with shifts.  These need to move
+//	into a header file
+#define TWO_PI_SCL		8
+#define CABLE_SPEED_SCL 8
+#define DRUM_RADIUS_SCL	8
+#define DRUM_SPEED_SCL	6			//	scaled value close RPM
+#define MOTOR_SPEED_SCL	6			//	scaled value close to RPM
+#define DRUM_REV_SCL	8
+#define GEAR_RATIO_SCL	8
+#define TENSION_SCL		8
+#define TORQUE_CMD_SCL  8
+#define CABLE_SCL 		8
+
+
+
+//	Revisit
+//	Initial development will assume a single motor.  Multiple motors will be supported and each
+//	could have a different gear ratio and base speed.  Extensions to support this are needed.
+
+
 int main(void)
 {
+	//	The following avaialable to all functions in the main loop as externs
+	extern int mc_state = 0;			//	master controller state
+	extern int mc_substate = 0;			//	master controller substate
+	extern int active_drum = 0;		//	active drum (1-7), 0: no active drum
+	extern int torque_cmd = 0;			//	scaled motor torque command in newton-meters
+	extern int motor_speed = 0;			//	scaled motor speed in rps
+
+	//	all the below refer to the current active drum system
+	extern int cable_speed = 0;			//	scaled cable speed in m/s
+	extern int drum_revs = 0;			// 	scaled drum revolutions from 0 cable length
+	extern int drum_speed = 0;			//	scaled drum speed in rps
+	extern int drum_radius = 0;			//	scaled working drum radius in meters
+	extern int tension = 0;				//	scaled tension in newtons
+	extern int gear_ratio = 0;			//	scaled gear ration motor:drum turns ratio
+	extern int cable = 0;				//	scaled cable length	
+	//	Working values for the intial development.  Many of these will become system parameters
+	gear_ratio = 4.52 * GEAR_RATIO_SCL;
+
+
+
+
 	// initialize
 	initMasterController();
+
+
 
 /* --------------------- Endless Polling Loop ----------------------------------------------- */
 	while (1==1)
 	{
+		
+
+
+
+		/*
+
 		ledHeartbeat();
 		timeKeeper();
 		
@@ -834,6 +891,7 @@ int main(void)
 		// SPI - led output & switch input
 		spiInOut();
 		lcdOut();
+		*/
 	}
 	return 0;	
 }
