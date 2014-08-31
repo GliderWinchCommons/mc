@@ -17,28 +17,10 @@
 #include <stdio.h>
 #include "spi2rw.h"
 #include "4x20lcd.h"
+#include "beep_n_lcd.h"
 
 extern char spi_ledout[SPI2SIZE];
 extern char spi_swin[SPI2SIZE];
-
-/* ************************************************************
-Turn the LEDs on in sequence, then turn them back off 
-***************************************************************/
-static int lednum = 12;	// Lowest port bit numbered LED
-static void toggle_4leds (void)
-{
-	if ((GPIO_ODR(GPIOD) & (1<<lednum)) == 0)
-	{ // Here, LED bit was off
-		GPIO_BSRR(GPIOD) = (1<<lednum);	// Set bit
-	}
-	else
-	{ // Here, LED bit was on
-		GPIO_BSRR(GPIOD) = (1<<(lednum+16));	// Reset bit
-	}
-	lednum += 1;		// Step through all four LEDs
-	if (lednum > 15) lednum = 12;
-
-}
 
 
 /* ***********************************************************************************************************

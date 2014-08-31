@@ -11,6 +11,7 @@
 #ifndef __CLOCKSPECIFYSETUP_H
 #define __CLOCKSPECIFYSETUP_H
 
+#define DTWTIME	(*(volatile unsigned int *)0xE0001004)	// Read DTW 32b system tick counter
 
 /* PLLP divide codes */
 enum pllpcode

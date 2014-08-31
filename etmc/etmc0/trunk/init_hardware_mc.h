@@ -18,8 +18,6 @@
 
 #define UXPRT UARTGPS	//	Debugging port
 
-#define DTWTIME	(*(volatile unsigned int *)0xE0001004)	// Read DTW 32b system tick counter
-
 /* *********************************************************************************************************** */
 void init_hardware_mc (void);
 /* @brief	:Setup & initialization functions 

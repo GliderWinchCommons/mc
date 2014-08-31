@@ -12,6 +12,10 @@ CURDIR=.
 SRCS = $(NAME).c startup_stm32f4xx.s syscalls.c 
 SRCS += CAN_test_msgs.c
 SRCS += CAN_error_msgs.c
+SRCS += mc_msgs.c
+SRCS += init_hardware_mc.c
+SRCS += calib_control_lever.c
+SRCS += beep_n_lcd.c
 
 ###################################################
 

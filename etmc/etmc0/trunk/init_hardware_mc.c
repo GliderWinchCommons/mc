@@ -30,6 +30,7 @@
 #include "libopencm3/stm32/f4/gpio.h"
 #include "DISCpinconfig.h"	// Pin configuration for STM32 Discovery board
 #include "adc_mc.h"
+#include "beep_n_lcd.h"
 
 
 /* The following values provide --
@@ -119,13 +120,6 @@ void init_hardware_mc (void)
 	   the USART/UART that will be used as STDOUT_FILENO, and STDIN_FILENO.  Don't call 'open' again!  */
 		fd = open("tty2", 0,0); // This sets up the uart control block pointer versus file descriptor ('fd')
 	
-	/* ---------------------- DTW sys counter -------------------------------------------------------- */
-		// Use DTW_CYCCNT counter (driven by sysclk) for polling type timing 
-		// CYCCNT counter is in the Cortex-M-series core.  See the following for details 
-		// http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0337g/BABJFFGJ.html 
-		*(volatile unsigned int*)0xE000EDFC |= 0x01000000; // SCB_DEMCR = 0x01000000;
-		*(volatile unsigned int*)0xE0001000 |= 0x1;	// Enable DTW_CYCCNT (Data Watch cycle counter)
-
 	/* ---------------------- Let the Op know it is alive ------------------------------------ */
 	/* Announce who we are. ('xprintf' uses uart number to deliver the output.) */		
 	xprintf(UXPRT,  " \n\rDISCOVERY F4 MASTER CONTROLLER: 08/30/2014  v0\n\r");

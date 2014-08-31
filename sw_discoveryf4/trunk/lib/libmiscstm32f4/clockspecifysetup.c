@@ -86,6 +86,13 @@ void clockspecifysetup(struct CLOCKS *clocks)
 	unsigned int	freq = clocks->freq;	
 	unsigned int	vco_freq;		// Main VCO freq
 
+	/* ---------------------- DTW sys counter -------------------------------------------------------- */
+		// Use DTW_CYCCNT counter (driven by sysclk) for polling type timing 
+		// CYCCNT counter is in the Cortex-M-series core.  See the following for details 
+		// http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.ddi0337g/BABJFFGJ.html 
+		*(volatile unsigned int*)0xE000EDFC |= 0x01000000; // SCB_DEMCR = 0x01000000;
+		*(volatile unsigned int*)0xE0001000 |= 0x1;	// Enable DTW_CYCCNT (Data Watch cycle counter)
+
 	/* See Ref manual page 85 figure 9 */
 	/* Note: Out of reset, the HSI (internal rc osc) is selected and ready. */
 
