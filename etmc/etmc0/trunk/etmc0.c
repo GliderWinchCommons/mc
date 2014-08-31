@@ -72,7 +72,7 @@ static void msg_out_usb(struct CANRCVBUF* p);
 
 #define UXPRT UARTGPS	//	Debugging port
 
-
+#define DTWTIME	(*(volatile unsigned int *)0xE0001004)	// Read DTW 32b system tick counter
 
 /* &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&& */
 /* ------------- Each node on the CAN bus gets a unit number -------------------------- */
@@ -324,10 +324,10 @@ void delay_tenth_sec(unsigned int t)
 {
 	int i;
 	unsigned int tp = sysclk_freq/10;	// Increment for 1/10th sec
-	unsigned int t0 = *(volatile unsigned int *)0xE0001004 + tp;
+	unsigned int t0 = DTWTIME + tp;
 	for (i = 0; i < t; i++)
 	{
-		while (((int)(*(volatile unsigned int *)0xE0001004 - t0)) < 0) // Has the time expired?
+		while (((int)(DTWTIME - t0)) < 0) // Has the time expired?
 		t0 += tp;
 	}
 	return;
@@ -482,8 +482,8 @@ void initMasterController (void) {
 //$$$		calib_control_lever();
 
 	/* --------------------- Initial times ---------------------------------------------------------------------------- */
-		t_led = *(volatile unsigned int *)0xE0001004 + FLASHCOUNT; 
-		t_lcd = *(volatile unsigned int *)0xE0001004 + LCDPACE;
+		t_led = DTWTIME + FLASHCOUNT; 
+		t_lcd = DTWTIME + LCDPACE;
 
 		xprintf (UXPRT,"ALL INITIALIZATION COMPLETED\n\r");
 	return;
@@ -510,12 +510,12 @@ void calib_control_lever(void)
 	int sw = 0;			// binary for holding switch values
 	int adc_tmp;
 
-	t_led = *(volatile unsigned int *)0xE0001004 + FLASHCOUNT;	//	initial t_led
+	t_led = DTWTIME + FLASHCOUNT;	//	initial t_led
 
 	GPIO_BSRR(GPIOA) = 1 << 8;	// Turn on beeper
 	while(clcalstate < 6)
 	{
-		if (((int)(*(volatile unsigned int *)0xE0001004 - t_led)) > 0) // Has the time expired?
+		if (((int)(DTWTIME - t_led)) > 0) // Has the time expired?
 		{ //	Time expired
 			xprintf(UXPRT, "%5u %8x \n\r", clcalstate, sw);
 			//	read filtered control lever adc last value and update min and max values
@@ -615,7 +615,7 @@ static void canmcbuf_add(struct CANRCVBUF* p)
  * @brief	: Flash the red LED to amuse the hapless Op or signal the wizard programmer that the loop is running.
  * ************************************************************************************** */
 	void ledHeartbeat (void) {
-		if (((int)(*(volatile unsigned int *)0xE0001004 - t_led)) > 0) // Has the time expired?
+		if (((int)(DTWTIME - t_led)) > 0) // Has the time expired?
 		{ // Here, yes.
 			t_led += FLASHCOUNT; 	// Set next toggle time
 			toggle_led(14); 	// Advance some LED pattern
@@ -629,11 +629,11 @@ static void canmcbuf_add(struct CANRCVBUF* p)
 	void timeKeeper (void) 
 	{
 		struct CANRCVBUF can;
-		if (((int)(*(volatile unsigned int *)0xE0001004 - t_timeKeeper)) > 0) // Has the time expired?
+		if (((int)(DTWTIME - t_timeKeeper)) > 0) // Has the time expired?
 		{ // Here, yes.
 			t_timeKeeper += SIXTYFOURTH; 	// Set next toggle time
 			count64++;
-			can.id       = 0xe0000000; // time id
+			can.id       = CANID_TIME; // time id
 			if(count64 == 64) {
 				currentTime++;
 				count64 = 0;
@@ -653,7 +653,7 @@ xprintf(UXPRT,"T %d\n\r",currentTime);
  * @brief	: SPI send/rcv & pacing 
  * ************************************************************************************** */
 	void spiInOut (void) {
-		if (((int)(*(volatile unsigned int *)0xE0001004 - t_spi)) > 0) {
+		if (((int)(DTWTIME - t_spi)) > 0) {
 			t_spi += SPIPACE;	// (200 per sec)
 
 			if (spi2_busy() != 0) // Is SPI2 busy?
@@ -668,7 +668,7 @@ xprintf(UXPRT,"T %d\n\r",currentTime);
  * ************************************************************************************** */
 	void lcdOut (void) {
 		char lcdLine[LCDLINESIZE + 1];
-		if (((int)(*(volatile unsigned int *)0xE0001004 - t_lcd)) > 0) {
+		if (((int)(DTWTIME - t_lcd)) > 0) {
 			t_lcd += LCDPACE;
 
 			snprintf(lcdLine, 20, "State %4d", currentState); 		lcd_printToLine(UARTLCD, 0, lcdLine);
@@ -848,14 +848,13 @@ static struct CANRCVBUF* msg_get(void)
 #ifdef GATEWAYLOCAL
 		msg_out_usb(p);	// Send incoming CAN msg to USB
 #endif	
-		canmcbuf[canmcidxi] = *p;		// Copy struct
-		canmcidxi += 1; if (canmcidxi >= CANMCBUFSIZE) canmcidxi = 0;
+		canmcbuf_add(p);
 	}
 
 	/* Get next buffered msg */
 	if (canmcidxm == canmcidxi) return NULL; // Return NULL if MC buffer empty
-	p = &canmcbuf[canmcidxm];
-	canmcidxm += 1; if (canmcidxm >= CANMCBUFSIZE) canmcidxm = 0;
+	p = &canmcbuf[canmcidxm];		// Pointer to msg
+	canmcidxm = incIdx(canmcidxm,CANMCBUFSIZE); // Advance index
 	return p;
 }
 
