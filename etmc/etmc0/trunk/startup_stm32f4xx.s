@@ -319,7 +319,7 @@ g_pfnVectors:
 */
    .weak      ADC_IRQHandler
    .thumb_set ADC_IRQHandler,Default_Handler27
-
+/*
    .weak      CAN1_TX_IRQHandler
    .thumb_set CAN1_TX_IRQHandler,Default_Handler28
 
@@ -331,7 +331,7 @@ g_pfnVectors:
 
    .weak      CAN1_SCE_IRQHandler
    .thumb_set CAN1_SCE_IRQHandler,Default_Handler31
-
+*/
    .weak      EXTI9_5_IRQHandler
    .thumb_set EXTI9_5_IRQHandler,Default_Handler32
 
@@ -355,7 +355,7 @@ g_pfnVectors:
 
    .weak      TIM4_IRQHandler
    .thumb_set TIM4_IRQHandler,Default_Handler39
-
+/*
    .weak      I2C1_EV_IRQHandler
    .thumb_set I2C1_EV_IRQHandler,Default_Handler40
 
@@ -367,7 +367,7 @@ g_pfnVectors:
 
    .weak      I2C2_ER_IRQHandler
    .thumb_set I2C2_ER_IRQHandler,Default_Handler43
-
+*/
    .weak      SPI1_IRQHandler
    .thumb_set SPI1_IRQHandler,Default_Handler44
 /*

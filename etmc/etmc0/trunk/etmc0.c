@@ -51,14 +51,23 @@
 
 #include "mccp.h"
 
+#include "common_canid_et.h"
 
-static void canbuf_add(struct CANRCVBUF* p);
+/* The following includes code a gateway. */
+// NOTE: "USB" refers to the serial port for a gateway
+#define GATEWAYLOCAL	
 
-void sprintbits(char* c, char* p);
+
+void delay_tenth_sec(unsigned int t);
+static void canmcbuf_add(struct CANRCVBUF* p);
+void calib_control_lever(void);
+static void msg_out_mc(struct CANRCVBUF* p);
+static void msg_out_usb(struct CANRCVBUF* p);
+
 
 /* USART|UART assignment for xprintf and read/write */
-#define UARTLCD	6	// Uart number for LCD messages
-#define UARTGPS	3	// Uart number for GPS or debug
+#define UARTLCD	3 //6	// Uart number for LCD messages
+#define UARTGPS	6 //3	// Uart number for GPS or debug
 #define UARTGATE 2  // UART number for Gateway (possibly Host later)
 
 #define UXPRT UARTGPS	//	Debugging port
@@ -122,23 +131,18 @@ const struct CAN_PARAMS can_params = { \
 
 static struct PCTOGATEWAY pctogateway; // CAN->PC
 static struct PCTOGATEWAY gatewayToPC; // PC->CAN
-static struct CANRCVBUF canrcvbuf;
-
-
-/* Sequence number checking for incoming msgs from the PC */
-//static u32 seqnum;
-//static u32 seqnum_old = 0;
 
 
 
-/* Circular buffer for passing CAN BUS msgs to PC */
-#define CANBUSBUFSIZE	64			// Number of incoming CAN msgs to buffer
-static struct CANRCVBUF canbuf[CANBUSBUFSIZE];
-static u32 canmsgct[CANBUSBUFSIZE]; // Msg seq number for CAN-to-PC.
-static int canbufidxi = 0;			// Incoming index into canbuf
-static int canbufidxm = 0;			// Outgoing index into canbuf
 
-static int incIdx(int x){x += 1; if (x >= CANBUSBUFSIZE) x = 0; return x;} 
+/* Circular buffer for incoming CAN + USB -> MC msgs */
+#define CANMCBUFSIZE	8			// Number of incoming CAN msgs to buffer
+static struct CANRCVBUF canmcbuf[CANMCBUFSIZE];
+static int canmcidxi = 0;			// Incoming index into canbuf
+static int canmcidxm = 0;			// Outgoing index into canbuf
+
+/* Advance circular pointer macro */
+static int incIdx(int x, int y){x += 1; if (x >= y) x = 0; return x;} 
 
 static struct CANRCVBUF* 	pfifo0;		// Pointer to CAN driver buffer for incoming CAN msgs, low priority
 static struct CANRCVTIMBUF*	pfifo1;		// Pointer to CAN driver buffer for incoming CAN msgs, high priority
@@ -157,7 +161,7 @@ char vv[128];	// sprintf buf
 
 // led timer
 u32	t_led;
-#define FLASHCOUNT (sysclk_freq/8);	// LED flash
+#define FLASHCOUNT (sysclk_freq/2);	// Orange LED flash increment
 
 // 64th second counter
 u32 t_timeKeeper;
@@ -168,14 +172,9 @@ u8 timerMsgFlag = 0;
 
 // lcd
 u32 t_lcd;
-#define LCDPACE (sysclk_freq/10);
+#define LCDPACE (sysclk_freq/2); // LCD pacing increment
 
 
-//	make this a 2D array later
-char lcdLine0[LCDLINESIZE + 1];
-char lcdLine1[LCDLINESIZE + 1];
-char lcdLine2[LCDLINESIZE + 1];
-char lcdLine3[LCDLINESIZE + 1];
 
 // SPI globals
 char spi_ledout[SPI2SIZE] = {0xAA,0x55};	// Initial outgoing pattern
@@ -299,7 +298,57 @@ Discovery F4 LEDs: PD 12, 13, 14, 15
 15 blue
 */
 
-
+/* ************************************************************
+ Beeper
+***************************************************************/
+void single_beep(void)
+{
+	GPIO_BSRR(GPIOA) = 1 << 8;	// Turn on beeper
+	delay_tenth_sec(1);		// 1/10th sec ON
+	GPIO_BSRR(GPIOA) = 1 << (8 + 16);// Turn off beeper
+	delay_tenth_sec(2);		// 1/10th sec OFF
+	return;	
+}
+void double_beep(void)
+{
+	single_beep();
+	single_beep();
+}
+void triple_beep(void)
+{
+	single_beep();
+	single_beep();
+	single_beep();
+}
+void delay_tenth_sec(unsigned int t)
+{
+	int i;
+	unsigned int tp = sysclk_freq/10;	// Increment for 1/10th sec
+	unsigned int t0 = *(volatile unsigned int *)0xE0001004 + tp;
+	for (i = 0; i < t; i++)
+	{
+		while (((int)(*(volatile unsigned int *)0xE0001004 - t0)) < 0) // Has the time expired?
+		t0 += tp;
+	}
+	return;
+}
+/* ************************************************************
+ * void show_op_the_error(char* p, int e, unsigned int t);
+ * @brief	: Show Op the error, beep, and pause
+ * @param	: p = pointer to string that goes on line 0 of LCD
+ * @param	: e = error code
+ * @param	: t = number of 1/10th secs to pause before continuing.
+***************************************************************/
+void show_op_the_error(char* p, int e, unsigned int t)
+{
+	lcd_printToLine(UARTLCD,0, p);	// Line 0 tells "who"
+	sprintf(vv, "er code: %d",e); 	
+	lcd_printToLine(UARTLCD, 1, vv);	// Line 1 shows error code
+	xprintf(UXPRT,"ERROR: %s er code: %s\n\r",p, vv); // Output to debugging serial port
+	triple_beep();
+	delay_tenth_sec(t);
+	return;
+}
 /* ************************************************************
 Turn the LEDs on in sequence, then turn them back off 
 ***************************************************************/
@@ -337,8 +386,12 @@ void toggle_led (int lednum)
 }
 
 
-/* Setup & initialization functions */ 
-void initMasterController () {
+
+/* ***********************************************************************************************************
+ * void initMasterController(void)
+ * @brief	:Setup & initialization functions 
+ ************************************************************************************************************* */
+void initMasterController (void) {
 	int init_ret = -4;
 	/* --------------------- Begin setting things up -------------------------------------------------- */ 
 		clockspecifysetup((struct CLOCKS*) & clocks);		// Get the system clock and bus clocks running
@@ -349,10 +402,14 @@ void initMasterController () {
 		// usb1_init();	// Initialization for USB (STM32F4_USB_CDC demo package)
 		//setbuf(stdout, NULL);
 	/* --------------------- Initialize UARTs ---------------------------------------------------- */
-		bsp_uart_int_init_number(UARTGATE, 115200, 256, 256, 0x40);	// UART used for the Gateway
-		bsp_uart_int_init_number(UXPRT, 115200, 256, 256, 0x40);	// UART used for debugging		
-		lcd_init(UARTLCD); 											// UART used for the LCD screen
+	    //  bsp_uart_int_init_number(u32 uartnumber, u32 baud,u32 rxbuffsize, u32 txbuffsize, u32 dma_tx_int_priority);
+		bsp_uart_int_init_number(UARTGATE, 230400, 256, 256, 0x40);	// UART used for the Gateway
+		bsp_uart_int_init_number(UXPRT,    115200, 256, 256, 0xB0);	// UART used for debugging		
+		lcd_init(UARTLCD); 						// UART used for the LCD screen
 										
+	/* Setup STDOUT, STDIN (a shameful sequence until we sort out 'newlib' and 'fopen'.)  The following 'open' sets up 
+	   the USART/UART that will be used as STDOUT_FILENO, and STDIN_FILENO.  Don't call 'open' again!  */
+		fd = open("tty2", 0,0); // This sets up the uart control block pointer versus file descriptor ('fd')
 	
 	/* ---------------------- DTW sys counter -------------------------------------------------------- */
 		// Use DTW_CYCCNT counter (driven by sysclk) for polling type timing 
@@ -363,7 +420,7 @@ void initMasterController () {
 
 	/* ---------------------- Let the Op know it is alive ------------------------------------ */
 	/* Announce who we are. ('xprintf' uses uart number to deliver the output.) */		
-	xprintf(UXPRT,  " \n\rDISCOVERY F4 Consolidated Tests: 08/10/2014  v0\n\r");
+	xprintf(UXPRT,  " \n\rDISCOVERY F4 MASTER CONTROLLER: 08/30/2014  v0\n\r");
 	/* Make sure we have the correct bus frequencies */
 	xprintf (UXPRT, "   hclk_freq (MHz) : %9u...............................\n\r",  hclk_freq/1000000);	
 	xprintf (UXPRT, "  pclk1_freq (MHz) : %9u...............................\n\r", pclk1_freq/1000000);	
@@ -372,194 +429,13 @@ void initMasterController () {
 
 	/* --------------------- Initialize SPI2 ------------------------------------------------------------------------------- */
 	spi2rw_init();
-	xprintf (UXPRT, "   SPI Init Complete\n\r");
-
+//	xprintf (UXPRT, "   SPI Init Complete\n\r");
 	/* --------------------- ADC initialization ---------------------------------------------------------------------------- */
 	int i = adc_mc_init_sequence();
 	if (i < 0)
 	{
-		xprintf (UXPRT, "ADC init failed with code: %i\n\r", i);	
+		show_op_the_error("ADC init failed", init_ret, 39);  // Show error and pause for 3.9 secs
 	}
-	xprintf (UXPRT, "   ADC Init Complete\n\r");
-
-	
-
-	/* Setup STDOUT, STDIN (a shameful sequence until we sort out 'newlib' and 'fopen'.)  The following 'open' sets up 
-	   the USART/UART that will be used as STDOUT_FILENO, and STDIN_FILENO.  Don't call 'open' again!  */
-	fd = open("tty2", 0,0); // This sets up the uart control block pointer versus file descriptor ('fd')
-
-
-//	code for calibrating scale and offset for the control lever
-//	make function later
-
-void single_beep(void)
-{
-//	Place holder for single CP beep
-}
-
-void double_beep(void)
-{
-//	Place holder for double CP beep
-}
-
-void tripple_beep(void)
-{
-//	Place holder for double CP beep
-}
-
-#define FSCL	((1 << 12) - 1)	//	full scale control lever (CL) output
-#define CLREST (1 << 11) 		//	SPI bit position for CL rest position switch
-#define CLFS  (1 << 8) 		//	SPI bit position for CL full scale position
-#define CL_ADC_CHANNEL 	0
-
-int cal_cl;						//	calibrated control lever output
-int cloffset = 0, clmax = 0;	//	Min and maximum values observed for control lever
-int clscale = 0;					// scale value for generating calibrated output
-int clcalstate = 0;				//	state for control lever intial calibration
-int adc_tmp;
-int sw = 0;						//	binary for holding switch values
-
-t_led = *(volatile unsigned int *)0xE0001004 + FLASHCOUNT;	//	initial t_led
-
-GPIO_BSRR(GPIOA) = 1 << 8;	// Turn on beeper
-while(clcalstate < 6)
-{
-	if (((int)(*(volatile unsigned int *)0xE0001004 - t_led)) > 0) // Has the time expired?
-	{ //	Time expired
-		xprintf(UXPRT, "%5u %8x \n\r", clcalstate, sw);
-		//	read filtered control lever adc last value and update min and max values
-		adc_tmp = adc_last_filtered[CL_ADC_CHANNEL];
-		cloffset = (cloffset < adc_tmp) ? cloffset : adc_tmp;
-		clmax = (clmax > adc_tmp) ? clmax : adc_tmp;
-		//	Read SPI switches
-		if (spi2_busy() != 0) // Is SPI2 busy?
-		{ // SPI completed  
-			spi2_rw(spi_ledout, spi_swin, SPI2SIZE); // Send/rcv SPI2SIZE bytes
-			//	convert to a binary word for comparisons (not general)
-			sw = (((int) spi_swin[0]) << 8) | (int) spi_swin[1];				
-			switch(clcalstate)
-			{				
-				case 0:	//	entry state
-				{
-					sprintf(vv, "Cycle control lever");
-					lcd_printToLine(UARTLCD, 0, vv);
-					sprintf(vv, "twice:");
-					lcd_printToLine(UARTLCD, 1, vv);
-					double_beep();
-					clcalstate = 1;
-				}
-				case 1:	// waiting for CL to rest position	
-				{
-					if (sw & CLREST) break;
-					clcalstate = 2;
-					cloffset = clmax = adc_tmp;	//	reset min and max values
-					sprintf(vv, "twice: 0");
-					lcd_printToLine(UARTLCD, 1, vv);
-					break;
-				}
-				case 2:	//	waiting for full scale position first time
-				{
-					if (!(sw & CLFS)) clcalstate = 3;					
-					break;
-				}
-				case 3:	//	wating for return to rest first time
-				{
-					if (sw & CLREST) break; 
-						{
-							clcalstate = 4;
-							sprintf(vv, "twice: 1");
-							lcd_printToLine(UARTLCD, 1, vv);
-							single_beep();
-							break;
-						}
-				}
-				case 4:	//	waiting for full scale second time
-				{
-					if (!(sw & CLFS)) clcalstate = 5;					
-					break;
-				}
-				case 5:	//	waiting for return to rest second time
-				{
-					if (sw & CLREST) break;
-					clscale = (FSCL  << 16) / (clmax - cloffset);
-					lcd_clear(UARTLCD);
-					single_beep();
-					clcalstate = 6; 
-				}
-			}			
-		}
-		toggle_4leds(); 		// Advance some LED pattern
-		t_led += FLASHCOUNT; 	// Set next toggle time		
-	}
-}
-xprintf (UXPRT, "   Control Lever Initial Calibration Complete\n\r");
-GPIO_BSRR(GPIOA) = 1 << (8 + 16);	// Turn off beeper
-
-xprintf(UXPRT, "%10d %10d %10d \n\r", cloffset, clmax, clscale);
-
-
-/*	Temporary code for testing UARTs, LCD, ADCs, SPI2*/
-int count = 0;
-
-extern u32 cic_debug0;	// counter in adc_mc.c
-u32 cic_debug0_prev = 0; // Used to take difference between new and "previous" counts
-
-
-
-void printbits(char* p);
-
-
-extern int spidebug1;
-
-char cin[21] = "Sw: ";
-
-while (1 == 1) 
-{if (((int)(*(volatile unsigned int *)0xE0001004 - t_led)) > 0) // Has the time expired?
-		{ //	Time exprired
-
-			sprintf(vv, "Test Count: %6d", count);
-			lcd_printToLine(UARTLCD, 0, vv);
-			printf("%s\n\r", vv);
-
-			//	ADC
-			cal_cl = ((adc_last_filtered[CL_ADC_CHANNEL] - cloffset) * clscale) >> 16;
-			sprintf(vv, "CL: %5d  %5d", (int) adc_last_filtered[CL_ADC_CHANNEL], cal_cl);
-			lcd_printToLine(UARTLCD, 1, vv);
-			xprintf(UXPRT, "%5d  %5d: ", (cic_debug0 - cic_debug0_prev), count); // Sequence number, number of filtered readings between xprintf's
-			cic_debug0_prev = cic_debug0;
-
-			for (i = 0; i < NUMBERADCCHANNELS_MC; i++)	// Loop through the three ADC channels
-				xprintf(UXPRT,"%5d ", adc_last_filtered[i]);	// ADC filtered and scaled reading
-
-			//	SPI 
-			
-			if (spi2_busy() != 0) // Is SPI2 busy?
-			{ // SPI completed  
-				spi2_rw(spi_ledout, spi_swin, SPI2SIZE); // Send/rcv SPI2SIZE bytes
-				spi_ledout[0] ^=  0xff;
-				spi_ledout[1] ^=  0xff;
-				sprintbits(&cin[4], spi_swin);
-
-			}
-			lcd_printToLine(UARTLCD, 2, cin);
-
-			xprintf(UXPRT,"%5u ", spidebug1);
-			printbits(spi_swin); // Print the bits			
-
-			sprintf(vv, "Ln 4; Count: %5d", count);
-			lcd_printToLine(UARTLCD, 3, vv);	
-
-			count++;
-
-			toggle_4leds(); 	// Advance some LED pattern
-			t_led += FLASHCOUNT; 	// Set next toggle time
-		}
-
-}
-
-/*	!!!	Should this be moved to init function once it is needed?  Looks like several things below here are already
-done 	*/
-
 	/* --------------------- CAN setup ------------------------------------------------------------------- */
 		/*  Pin usage for CAN--
 		PD00 CAN1  Rx LQFP 81 Header P2|36 BLU
@@ -567,7 +443,7 @@ done 	*/
 		PC04 GPIIO RS LQFP 33 Header P1|20 GRN
 		*/
 		/* Configure CAN driver RS pin: PC4 LQFP 33, Header P1|20, fo hi speed. */
-		can_nxp_setRS_ldr(0,(volatile u32 *)GPIOC, 4); // (1st arg) 0 = high speed mode; not-zero = standby mode
+		can_nxp_setRS_ldr(0,(volatile u32 *)GPIOC, 4); // (1st arg) 0 = high speed mode; not-zero = standby modeshow_op_the_error("CAN init failed", init_ret, 40);
 
 		/* Setup CAN registers and initialize routine */
 		init_ret = can_init_pod_ldr((struct CAN_PARAMS*)&can_params); // 'struct' that holds all the parameters
@@ -575,71 +451,210 @@ done 	*/
 		/* Check if initialization was successful, or timed out. */
 		if (init_ret <= 0)
 		{ // Here the init returned an error code
-			// xprintf(UARTLCD, "###### can init failed: code = %d\n\r",init_ret); 
-			panic_leds(6);	while (1==1);	// Flash panic display with code 6
+			show_op_the_error("CAN init failed", init_ret, 40);  // Show error and pause for 4.0 secs
 		}
-		// xprintf (UARTLCD, "\n\rcan ret ct: %d..............................................\n\r",init_ret); // Just a check for how long "exit initialization" took
-
+		// xprintf (UXPRT, "\n\rcan ret ct: %d..............................................\n\r",init_ret); // Just a check for how long "exit initialization" took
 		/* Set filters to respond "this" unit number and time sync broadcasts */
 		can_filter_unitid_ldr(can_params.iamunitnumber);	// Setup msg filter banks
 
-		// xprintf (UARTLCD, " IAMUNITNUMBER %0x %0x.....................................\n\r",(unsigned int)IAMUNITNUMBER,(unsigned int)CAN_UNITID_SE1 >> CAN_UNITID_SHIFT); 
+		// xprintf (UXPRT, " IAMUNITNUMBER %0x %0x.....................................\n\r",(unsigned int)IAMUNITNUMBER,(unsigned int)CAN_UNITID_SE1 >> CAN_UNITID_SHIFT); 
 
 		/* Since this is a gateway set the filter for the hardware to accept all msgs. */
 		int can_ret = can_filtermask16_add_ldr( 0 );	// Allow all msgs
 		/* Check if filter initialization was successful, or timed out. */
 		if (can_ret < 0)
 		{
-			// xprintf(UARTLCD, "###### can_filtermask16_add failed: code = %d\n\r",can_ret);
-			panic_leds(7);	while (1==1);	// Flash panic display with code 7
+			show_op_the_error("CAN filter mask init", init_ret, 25);  // Show error and pause for 2.5 secs
 		}
+		xprintf (UXPRT,"CAN initialization completed\n\r");
 	/* --------------------- Hardware is ready, so do program-specific startup ---------------------------- */
-		t_led = *(volatile unsigned int *)0xE0001004 + FLASHCOUNT; // Set initial time
 
+	/* --------------------- Decoding chars from USB-serial port ------------------------------------------ */
+#ifdef GATEWAYLOCAL
 		PC_msg_initg(&pctogateway);	// Initialize struct for CAN message from PC
 		PC_msg_initg(&gatewayToPC);	// Initialize struct for CAN message from PC
 
-		/* Set modes for routines that receive and send CAN msgs */
+		/* Set modes for USB-serial port routines that receive and send CAN msgs */
 		pctogateway.mode_link = MODE_LINK;
 		gatewayToPC.mode_link = MODE_LINK;
-	
-	/* --------------------- LCD ---------------------------------------------------------------------------- */
+#endif
+	/* --------------------- Control lever calibration ---------------------------------------------------------------- */
+//$$$		calib_control_lever();
+
+	/* --------------------- Initial times ---------------------------------------------------------------------------- */
+		t_led = *(volatile unsigned int *)0xE0001004 + FLASHCOUNT; 
 		t_lcd = *(volatile unsigned int *)0xE0001004 + LCDPACE;
+
+		xprintf (UXPRT,"ALL INITIALIZATION COMPLETED\n\r");
+	return;
+}
+/* ***********************************************************************************************************
+ * void calib_control_lever(void);
+ * @brief	:Setup & initialization functions 
+ ************************************************************************************************************* */
+
+//	code for calibrating scale and offset for the control lever
+//	make function later
+#define FSCL	((1 << 12) - 1)	// full scale control lever (CL) output
+#define CLREST (1 << 11) 	// SPI bit position for CL rest position switch
+#define CLFS  (1 << 8) 		// SPI bit position for CL full scale position
+#define CL_ADC_CHANNEL 	0
+
+int cal_cl;			// calibrated control lever output
+int cloffset = 0, clmax = 0;	// Min and maximum values observed for control lever
+int clscale = 0;		// scale value for generating calibrated output
+
+void calib_control_lever(void)
+{
+	int clcalstate = 0;		// state for control lever intial calibration
+	int sw = 0;			// binary for holding switch values
+	int adc_tmp;
+
+	t_led = *(volatile unsigned int *)0xE0001004 + FLASHCOUNT;	//	initial t_led
+
+	GPIO_BSRR(GPIOA) = 1 << 8;	// Turn on beeper
+	while(clcalstate < 6)
+	{
+		if (((int)(*(volatile unsigned int *)0xE0001004 - t_led)) > 0) // Has the time expired?
+		{ //	Time expired
+			xprintf(UXPRT, "%5u %8x \n\r", clcalstate, sw);
+			//	read filtered control lever adc last value and update min and max values
+			adc_tmp = adc_last_filtered[CL_ADC_CHANNEL];
+			cloffset = (cloffset < adc_tmp) ? cloffset : adc_tmp;
+			clmax = (clmax > adc_tmp) ? clmax : adc_tmp;
+			//	Read SPI switches
+			if (spi2_busy() != 0) // Is SPI2 busy?
+			{ // SPI completed  
+				spi2_rw(spi_ledout, spi_swin, SPI2SIZE); // Send/rcv SPI2SIZE bytes
+				//	convert to a binary word for comparisons (not general)
+				sw = (((int) spi_swin[0]) << 8) | (int) spi_swin[1];				
+				switch(clcalstate)
+				{				
+					case 0:	//	entry state
+					{
+						sprintf(vv, "Cycle control lever");
+						lcd_printToLine(UARTLCD, 0, vv);
+						sprintf(vv, "twice:");
+						lcd_printToLine(UARTLCD, 1, vv);
+						double_beep();
+						clcalstate = 1;
+					}
+					case 1:	// waiting for CL to rest position	
+					{
+						if (sw & CLREST) break;
+						clcalstate = 2;
+						cloffset = clmax = adc_tmp;	//	reset min and max values
+						sprintf(vv, "twice: 0");
+						lcd_printToLine(UARTLCD, 1, vv);
+						break;
+					}
+					case 2:	//	waiting for full scale position first time
+					{
+						if (!(sw & CLFS)) clcalstate = 3;					
+						break;
+					}
+					case 3:	//	wating for return to rest first time
+					{
+						if (sw & CLREST) break; 
+							{
+								clcalstate = 4;
+								sprintf(vv, "twice: 1");
+								lcd_printToLine(UARTLCD, 1, vv);
+								single_beep();
+								break;
+							}
+					}
+					case 4:	//	waiting for full scale second time
+					{
+						if (!(sw & CLFS)) clcalstate = 5;					
+						break;
+					}
+					case 5:	//	waiting for return to rest second time
+					{
+						if (sw & CLREST) break;
+						clscale = (FSCL  << 16) / (clmax - cloffset);
+						lcd_clear(UARTLCD);
+						single_beep();
+						clcalstate = 6; 
+					}
+				}			
+			}
+			toggle_4leds(); 	// Advance some LED pattern
+			t_led += FLASHCOUNT; 	// Set next toggle time		
+		}
+	}	
+	GPIO_BSRR(GPIOA) = 1 << (8 + 16);	// Turn off beeper
+	xprintf(UXPRT, "  cloffset: %10d clmax: %10d clscale: %10d \n\r", cloffset, clmax, clscale);
+	xprintf 	(UXPRT, "   Control Lever Initial Calibration Complete\n\r");
+	return;
+}
+/* ============================= main loop functions ============================================================ */
+/* **************************************************************************************
+ * static void canmcbuf_add(struct CANRCVBUF* p);
+ * @brief	: Add msg to buffer holding structs of CAN format msg
+ * @param	: p = Pointer to CAN msg
+ * ************************************************************************************** */
+static void canmcbuf_add(struct CANRCVBUF* p)
+{
+	int temp;
+	canmcbuf[canmcidxi] = *p;		// Copy struct
+	temp = incIdx(canmcidxi,CANMCBUFSIZE);	// Increment the index for incoming msgs.
+	if (canmcidxm == temp)  		// Did this last fill the last one?
+	{ // Yes, we have filled the buffer.  This CAN msg might be dropped (by not advancing the index)
+		Errors_misc(-1);		// Add to buffer overrun counter
+	}
+	else
+	{ // Here, there is room in the buffer and we are good to go.
+		canmcidxi = temp;		// Update the index to next buffer position.
+	}	
+	return;
 }
 
-// main loop functions
-	/* Flash the red LED to amuse the hapless Op or signal the wizard programmer that the loop is running. */
-	void ledHeartbeat () {
+/* **************************************************************************************
+ * void ledHeartbeat(void);
+ * @brief	: Flash the red LED to amuse the hapless Op or signal the wizard programmer that the loop is running.
+ * ************************************************************************************** */
+	void ledHeartbeat (void) {
 		if (((int)(*(volatile unsigned int *)0xE0001004 - t_led)) > 0) // Has the time expired?
 		{ // Here, yes.
 			t_led += FLASHCOUNT; 	// Set next toggle time
-
 			toggle_led(14); 	// Advance some LED pattern
 		}
 	}
 
-	/* function to find the 64th second beats */
-	void timeKeeper () {
+/* **************************************************************************************
+ * void void timeKeeper(void);
+ * @brief	: function to find the 64th second beats
+ * ************************************************************************************** */
+	void timeKeeper (void) 
+	{
+		struct CANRCVBUF can;
 		if (((int)(*(volatile unsigned int *)0xE0001004 - t_timeKeeper)) > 0) // Has the time expired?
 		{ // Here, yes.
 			t_timeKeeper += SIXTYFOURTH; 	// Set next toggle time
-
 			count64++;
-
+			can.id       = 0xe0000000; // time id
 			if(count64 == 64) {
 				currentTime++;
 				count64 = 0;
-				timerMsgFlag = 2; // send 1 sec message
+				can.dlc      = 0x00000004;
+				can.cd.us[0] = currentTime;
+xprintf(UXPRT,"T %d\n\r",currentTime);
+
 			} else {
-				timerMsgFlag = 1; // send 1/64th sec message
+				can.dlc      = 0x00000001;
+				can.cd.us[0] = count64;
 			}
+			msg_out_mc(&can); // Output to CAN+USB
 		}
 	}
-
-	/* spi i/o */
-	void spiInOut () {
+/* **************************************************************************************
+ * void spiInOut(void);
+ * @brief	: SPI send/rcv & pacing 
+ * ************************************************************************************** */
+	void spiInOut (void) {
 		if (((int)(*(volatile unsigned int *)0xE0001004 - t_spi)) > 0) {
-			t_spi += SPIPACE;
+			t_spi += SPIPACE;	// (200 per sec)
 
 			if (spi2_busy() != 0) // Is SPI2 busy?
 			{ // Here, no.
@@ -647,42 +662,44 @@ done 	*/
 			}
 		}
 	}
-
-	/* LCD output routine */
-	void lcdOut () {
+/* **************************************************************************************
+ * void lcdOut(void);
+ * @brief	: LCD output and pacing 
+ * ************************************************************************************** */
+	void lcdOut (void) {
+		char lcdLine[LCDLINESIZE + 1];
 		if (((int)(*(volatile unsigned int *)0xE0001004 - t_lcd)) > 0) {
 			t_lcd += LCDPACE;
 
-			snprintf(lcdLine0, 20, "%16s%4d", "Current State:", currentState);
-			snprintf(lcdLine1, 20, "outputTorque: %20f", outputTorque);
-			snprintf(lcdLine2, 20, "Time: %20d", (int) currentTime);
-
-			// padString(' ', lcdLine0, 20);
-			// padString(' ', lcdLine1, 20);
-			// padString(' ', lcdLine2, 20);
-			// padString(' ', lcdLine3, 20);
-
-			// display a char on the lcd
-			lcd_printToLine(UARTLCD, 0, lcdLine0);
-			// lcd_printToLine(UARTLCD, 1, lcdLine1);
-			lcd_printToLine(UARTLCD, 2, lcdLine2);
-			// lcd_printToLine(UARTLCD, 3, lcdLine3);
+			snprintf(lcdLine, 20, "State %4d", currentState); 		lcd_printToLine(UARTLCD, 0, lcdLine);
+			snprintf(lcdLine, 20, "Torq  %0.2f", outputTorque);		lcd_printToLine(UARTLCD, 1, lcdLine);
+			snprintf(lcdLine, 20, "Time: %d", (int) currentTime);		lcd_printToLine(UARTLCD, 2, lcdLine);
+int outputTorquei = outputTorque * 10;
+xprintf(UXPRT,"State %4d: Torq  %0.2f: Time: %d\n\r",currentState,outputTorquei,(int) currentTime);
 		}
 	}
-
-	void stateZero () {
+/* **************************************************************************************
+ * void stateZero(void);
+ * @brief	: State Zero 
+ * ************************************************************************************** */
+	void stateZero (void) {
 		// TODO: check for conditions that progress the state
 		if (currentTime > 60) {
 			nextState = 1;
 		}
 	}
-
-	void stateOne () {
+/* **************************************************************************************
+ * void stateOne(void);
+ * @brief	: State One 
+ * ************************************************************************************** */
+	void stateOne (void) {
 
 	}
-
-	/* State Machine */
-	void stateMachine () {
+/* **************************************************************************************
+ * void stateMachine(void);
+ * @brief	: State Machine
+ * ************************************************************************************** */
+	void stateMachine (void) {
 		currentState = nextState;
 
 		switch(currentState) {
@@ -694,226 +711,193 @@ done 	*/
 				break;
 		}
 	}
-
-	void desiredTensionSpeed () {
+/* **************************************************************************************
+ * static void desiredTensionSpeed(void);
+ * @brief	: compute tension speed
+ * ************************************************************************************** */
+	void desiredTensionSpeed (void) {
 		desiredSpeed = 1;
 		desiredTension = 2;
 	}
-
-	void controlLaw () {
+/* **************************************************************************************
+ * static void controlLaw(void);
+ * @brief	: compute output torque
+ * ************************************************************************************** */
+	void controlLaw (void) {
 		if (currentState == 0) {
 			outputTorque = 0.5 * desiredSpeed;
 		} else {
 			outputTorque = 0.5 * desiredTension;
 		}
 	}
+/* **************************************************************************************
+ * static void msg_out_can(struct CANRCVBUF* p);
+ * @brief	: Output msg from MC to CAN and USB
+ * ************************************************************************************** */
+static void msg_out_can(struct CANRCVBUF* p)
+{
+	CAN_gateway_send(p);	// Add to xmit buffer (if OK)
+	return;
+}
 
-	/* ================ PC --> CAN ================================================================= */
-	// messages here are from the pc. We need to parse and forward to the CANbus
-	void usbInput () {
-		int tmp;
-		int temp;
+/* **************************************************************************************
+ * static void msg_out_mc(struct CANRCVBUF* p);
+ * @brief	: Output msg from MC to CAN and USB
+ * ************************************************************************************** */
+static void msg_out_mc(struct CANRCVBUF* p)
+{
+#ifdef GATEWAYLOCAL
+	msg_out_usb(p);
+#endif
+	msg_out_can(p);
+	return;
+}
+/* **************************************************************************************
+ * static void msg_out_usb(struct CANRCVBUF* p);
+ * @param	: p = pointer to struct with msg to be sent
+ * @brief	: Output msg to USB-serial port
+ * ************************************************************************************** */
+static void msg_out_usb(struct CANRCVBUF* p)
+{
+	pctogateway.cmprs.seq = canmsgctr++;		// Add sequence number (for PC checking for missing msgs)
+	USB_toPC_msg_mode(STDOUT_FILENO, &pctogateway, p); 	// Send to PC via STDOUT
+	return;
+}
+/* **************************************************************************************
+ * static int msg_get_can(void);
+ * @brief	: Check and get incoming msg from CAN bus
+ * @return	: Pointer to a struct CANRCVBUF if there is a msg, otherwise return NULL
+ * ************************************************************************************** */
+static struct CANRCVBUF* msg_get_can(void)
+ {
+	if ( (pfifo1 = canrcvtim_get_ldr()) != 0)	// Did we receive a HIGH PRIORITY CAN BUS msg?
+	{ // Here yes.
+		return &pfifo1->R;	// Return pointer to CANRCVBUF struct
+	}
+	if ( (pfifo0 = canrcv_get_ldr()) != 0)		// Did we receive a LESS-THAN-HIGH-PRIORITY CAN BUS msg?
+	{ // Here yes.
+		return pfifo0;	// Add msg to buffer
+	}
+	return NULL;
+	}
+/* **************************************************************************************
+ * static struct CANRCVBUF* msg_get_usb(void);
+ * @brief	: Check and get incoming msg from CAN bus
+ * @return	: Pointer to a struct CANRCVBUF if there is a msg, otherwise return NULL
+ * ************************************************************************************** */
+u32 msg_get_usb_err1 = 0;	// Running error count
+static struct CANRCVBUF canrcvbuf;
 
-		temp=USB_PC_get_msg_mode(STDIN_FILENO, &gatewayToPC, &canrcvbuf);	// Check if msg is ready
-		if (temp != 0)	// Do we have completion of a msg?
-		{ // Here, yes.  We have a msg, but it might not be valid.
-			if ( temp == 1 ) // Was valid?
-			{ // Here, yes.
-				tmp = temp >> 16; // Isolate compression error codes
-				if (tmp < 0)	// Did the compression detect some anomolies?
-				{ // Here, something wrong with the msg--
+static struct CANRCVBUF* msg_get_usb(void)
+{
+	int tmp;
+	int temp;
+	struct CANRCVBUF* p = 0;  // default to NULL
 
-				}
-				else
-				{ // Here, msg is OK msg from the PC
-
-					// TODO: filter message id's that require the MC to do something
-
-					// Take the message and send it over CAN
-					tmp = CAN_gateway_send(&canrcvbuf);	// Add to xmit buffer (if OK)
-					Errors_CAN_gateway_send(tmp);		// Count any error returns					
-					PC_msg_initg(&gatewayToPC);	// Initialize struct for next msg from PC to gateway
-				}
+	/* Each time 'USB_PC_get_msg_mode' is called it adds any buffered incoming ASCII chars */
+	temp=USB_PC_get_msg_mode(STDIN_FILENO, &gatewayToPC, &canrcvbuf);	// Check if msg is ready
+	if (temp != 0)	// Do we have completion of a msg?
+	{ // Here, yes.  We have a msg, but it might not be valid.
+		if ( temp == 1 ) // Was valid?
+		{ // Here, yes.
+			tmp = temp >> 16; // Isolate compression error codes
+			if (tmp < 0)	// Did the compression detect some anomolies?
+			{ // Here, something wrong with the msg--
+				msg_get_usb_err1 += 1;	// Count errors
 			}
 			else
-			{ // Something wrong with the msg.  Count the various types of error returns from 'USB_PC_msg_getASCII'
-				Errors_USB_PC_get_msg_mode(temp);
-			} // Note: 'pctogateway' gets re-intialized in 'PC_msg_initg' when there are errors.
+			{ // Here, msg is OK msg from the PC
+				p = &canrcvbuf;	// Return pointer to struct with msg
+			}
 		}
+		else
+		{ // Something wrong with the msg.  Count the various types of error returns from 'USB_PC_msg_getASCII'
+			Errors_USB_PC_get_msg_mode(temp);
+		} // Note: 'pctogateway' gets re-intialized in 'PC_msg_initg' when there are errors.
+
+		/* Initialize struct for next msg from PC to gateway */
+		PC_msg_initg(&pctogateway);	
+	}
+	return p;
+}
+/* **************************************************************************************
+ * static struct CANRCVBUF* msg_get(void);
+ * @brief	: Check and add incoming msgs to MC circular buff
+ * @return	: pointer to msg, or NULL if no msgs buffered.
+ * ************************************************************************************** */
+static u32 U;
+static struct CANRCVBUF* msg_get(void)
+{
+	struct CANRCVBUF* p;
+	int tmp;
+
+	/* Add all incoming msgs to MC circular buffer */
+
+#ifdef GATEWAYLOCAL
+	/* USB -> MC+CAN */
+	while ( (p=msg_get_usb()) != 0)
+	{
+		canmcbuf_add(p); // Add to MC buffer
+		tmp = CAN_gateway_send(&canrcvbuf); // Add to CAN xmit buffer
+	}
+#endif
+
+	/* CAN -> MC+USB */
+	while ( (p=msg_get_can()) != 0) // CAN msg ready?
+	{ // Here, yes.
+#ifdef GATEWAYLOCAL
+		msg_out_usb(p);	// Send incoming CAN msg to USB
+#endif	
+		canmcbuf[canmcidxi] = *p;		// Copy struct
+		canmcidxi += 1; if (canmcidxi >= CANMCBUFSIZE) canmcidxi = 0;
 	}
 
-	/* ================= CAN --> PC ================================================================= */
-	// messages here are from the CANbus. We need to parse and forward to the PC
-	void canInput () {
-		while ( (pfifo1 = canrcvtim_get_ldr()) != 0)	// Did we receive a HIGH PRIORITY CAN BUS msg?
-		{ // Here yes.  Retrieve it from the CAN buffer and save it in our vast mainline storage buffer ;)
-			canbuf_add(&pfifo1->R);	// Add msg to buffer
-
-			// TODO: filter message id's that require the MC to do something
-		}
-
-		while ( (pfifo0 = canrcv_get_ldr()) != 0)		// Did we receive a LESS-THAN-HIGH-PRIORITY CAN BUS msg?
-		{ // Here yes.  Retrieve it from the CAN buffer and save it in our vast mainline storage buffer.
-			canbuf_add(pfifo0);	// Add msg to buffer
-
-			// TODO: filter message id's that require the MC to do something
-		}
-	}
-
-	void usbOutput () {
-		/* Send buffered msgs to PC */
-		while (canbufidxi != canbufidxm)	// Set up all the buffered msgs until we are caught up.				
-		{ // Here, yes.  Set up a buffered msg from the CAN bus to go to the PC.
-			pctogateway.cmprs.seq = canmsgct[canbufidxm];		// Add sequence number (for PC checking for missing msgs)
-			USB_toPC_msg_mode(STDOUT_FILENO, &pctogateway, &canbuf[canbufidxm]); 	// Send to PC via STDOUT
-			canbufidxm = incIdx(canbufidxm);			// Advance outgoing buffer index.
-		}
-	}
-
-	// check flags and send out appropriate messages
-	void canOutput () {
-		struct CANRCVBUF can;
-		int tmp;
-
-		if (timerMsgFlag == 1) { // every 1/64 second
-			can.id       = 0x20000000; // time id
-			can.dlc      = 0x00000001;
-			can.cd.us[0] = count64;
-
-			tmp = CAN_gateway_send(&can);
-			canbuf_add(&can);
-
-			can.id       = 0x21400000; // torque
-			can.dlc      = 0x00000002;
-			can.cd.us[0] = 0x0001;
-
-			tmp = CAN_gateway_send(&can);
-			canbuf_add(&can);
-
-			timerMsgFlag = 0;
-		} else if (timerMsgFlag == 2) { // every second
-			can.id       = 0x20000000;
-			can.dlc      = 0x00000004;
-			can.cd.us[0] = currentTime;
-
-			tmp = CAN_gateway_send(&can);
-			canbuf_add(&can);
-
-			timerMsgFlag = 0;
-		}
-	}
-
-
+	/* Get next buffered msg */
+	if (canmcidxm == canmcidxi) return NULL; // Return NULL if MC buffer empty
+	p = &canmcbuf[canmcidxm];
+	canmcidxm += 1; if (canmcidxm >= CANMCBUFSIZE) canmcidxm = 0;
+	return p;
+}
 
 /*#################################################################################################
 And now for the main routine 
   #################################################################################################*/
 int main(void)
 {
+	struct CANRCVBUF* pmc;
+
 	// initialize
 	initMasterController();
+volatile int tt;
+for (tt = 0; tt < 1000000; tt++);
 
 /* --------------------- Endless Polling Loop ----------------------------------------------- */
 	while (1==1)
 	{
-		ledHeartbeat();
-		timeKeeper();
-		
-		// Gateway functionality (also catches messages for the MC)
-		usbInput();
-		canInput();
+		ledHeartbeat();	// Flash Orange LED to show loop running
 
+		/* Set 'timerMsgFlag' to 1 for 1/64th tick, to 2 for even second tick */
+		timeKeeper();	// 
+
+		/* Check for incoming CAN format msgs.  */
+		while ((pmc = msg_get()) != NULL)	// Any buffered?
+		{ // Here yes.  pmc points to msg struct
+			// TODO select msgs of interest here 
+xprintf(UXPRT,"U %d %08X\n\r",U++, pmc->id );
+		}
+
+		/* Run state machine */
 		stateMachine();
 		desiredTensionSpeed();
 		controlLaw();
 
-		// Send any messages the MC needs over CAN
-		canOutput();
-		usbOutput();
-
-		// SPI - led output & switch input
+		/* Update SPI - led output & switch input */
 		spiInOut();
-		lcdOut();
+
+		/* Output data to LCD */
+		lcdOut();	// Output LCD (paced)
 	}
 	return 0;	
 }
 
-
-
-
-/* **************************************************************************************
- * static void canbuf_add(struct CANRCVBUF* p);
- * @brief	: Add msg to buffer
- * @param	: p = Pointer to CAN msg
- * ************************************************************************************** */
-static void canbuf_add(struct CANRCVBUF* p)
-{
-	int temp;
-	canbuf[canbufidxi] = *p;		// Copy struct
-	canmsgct[canbufidxi] = canmsgctr;	// Save sequence count that goes with this msg
-	canmsgctr += 1;				// Count incoming CAN msgs
-	temp = incIdx(canbufidxi);		// Increment the index for incoming msgs.
-	if (canbufidxm == temp)  		// Did this last fill the last one?
-	{ // Yes, we have filled the buffer.  This CAN msg might be dropped (by not advancing the index)
-		Errors_misc(-1);		// Add to buffer overrun counter
-	}
-	else
-	{ // Here, there is room in the buffer and we are good to go.
-		canbufidxi = temp;		// Update the index to next buffer position.
-	}	
-	return;
-}
-
-
-
-
-
-/******************************************************************************
- * Print out the bits for the array
- ******************************************************************************/
- void printbits(char* p)
-{
-	//	Kludged function diplay switches on LCD
-	int i,j;
-	char c;
-
-	// Print out the bits for the incoming bytes
-	for (j = 0; j < SPI2SIZE; j++) // For each byte in the cycle
-	{
-		for (i = 0; i < 8; i++) // For each bit within a byte
-		{
-			if ( (*p & ((1 << 7)  >> i)) == 0) 
-				c = '.';	// Symbol for "zero"
-			else
-				c = '1';	// Symbol for "one"
-			xprintf (UXPRT,"%c",c);
-		}
-		p++;
-	}
-	xprintf (UXPRT,"\n\r");
-	return;
-}
-
-void sprintbits(char* c, char* p)
-{
-	int i, j;
-	int k;
-	
-
-	//	produce string output of the bits for the incoming bytes
-	c[SPI2SIZE * 8] = 0;
-	for (j = 0; j < SPI2SIZE; j++) // For each byte in the cycle
-	{
-		k = j * 8 + 7;
-		for (i = 0; i < 8; i++) // For each bit within a byte
-		{
-			if ( (*p & (1<<i)) == 0) 
-				c[k--] = '.';	// Symbol for "zero"
-			else
-				c[k--] = '1';	// Symbol for "one"
-		}
-		p++;
-	}
-	return;
-}
 
