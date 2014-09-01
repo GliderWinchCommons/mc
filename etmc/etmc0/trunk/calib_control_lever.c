@@ -48,6 +48,8 @@ void calib_control_lever(void)
 	unsigned int t_led = DTWTIME + FLASHCOUNT;	//	initial t_led
 	char vv[128];
 
+	xprintf (UXPRT,"\nBegin control level calibration\n\r");
+
 	GPIO_BSRR(GPIOA) = 1 << 8;	// Turn on beeper
 	while(clcalstate < 6)
 	{

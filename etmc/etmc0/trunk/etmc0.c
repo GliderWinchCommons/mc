@@ -320,25 +320,43 @@ xprintf(UXPRT,"State: %4d Torq: %d Time: %d\n\r",currentState,outputTorquei,(int
 And now for the main routine 
   #################################################################################################*/
 
-unsigned int U; // debug
 
 int main(void)
 {
-	struct CANRCVBUF* pmc;
+// Debug stuff
+unsigned int U; // debug
+unsigned int t_loop0;
+unsigned int t_loop9;
+unsigned int t_diff;
+unsigned int t_max = 0;
+
+	struct CANRCVBUF* pmc;	// Incoming msg pointer
 
 	// initialize
-	init_hardware_mc();
-//	init_control_lever();
+	init_hardware_mc();	
+//	calib_control_lever();
 	/* --------------------- Initial times ---------------------------------------------------------------------------- */
 		t_led        = DTWTIME + FLASHCOUNT; 
 		t_lcd        = DTWTIME + LCDPACE;
 		t_timeKeeper = DTWTIME + SIXTYFOURTH;
-volatile int tt;
-for (tt = 0; tt < 1000000; tt++);
 
+t_loop0 = DTWTIME;
+t_loop9 = DTWTIME + 168000000; // 1 sec time
 /* --------------------- Endless Polling Loop ----------------------------------------------- */
 	while (1==1)
 	{
+// Debug - check loop time
+t_diff = DTWTIME - t_loop0;
+if (t_diff > t_max) t_max = t_diff; // Save max
+
+if (((int)(DTWTIME - t_loop9)) > 0 ) // Periodic display
+{
+	xprintf(UXPRT,"%d\n\r",t_max);
+//	t_max = 0;	// Reset max
+	t_loop9 = DTWTIME + 168000000; // Once per sec
+}
+t_loop0 = DTWTIME;
+
 		ledHeartbeat();	// Flash Orange LED to show loop running
 
 		/* Set 'timerMsgFlag' to 1 for 1/64th tick, to 2 for even second tick */
@@ -348,7 +366,7 @@ for (tt = 0; tt < 1000000; tt++);
 		while ((pmc = msg_get()) != NULL)	// Any buffered?
 		{ // Here yes.  pmc points to msg struct
 			// TODO select msgs of interest here 
-xprintf(UXPRT,"U %d %08X\n\r",U++, pmc->id );
+//xprintf(UXPRT,"U %d %08X\n\r",U++, pmc->id );
 		}
 
 		/* Run state machine */

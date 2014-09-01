@@ -16,6 +16,7 @@ SRCS += mc_msgs.c
 SRCS += init_hardware_mc.c
 SRCS += calib_control_lever.c
 SRCS += beep_n_lcd.c
+#SRCS += states.c
 
 ###################################################
 

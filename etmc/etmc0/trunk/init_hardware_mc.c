@@ -174,12 +174,7 @@ void init_hardware_mc (void)
 	/* --------------------- Decoding chars from USB-serial port ------------------------------------------ */
 		mc_msg_init();
 
-	/* --------------------- Control lever calibration ---------------------------------------------------------------- */
-		xprintf (UXPRT,"Begin control level calibration\n\r");
-//$$$		calib_control_lever();
 
-
-
-		xprintf (UXPRT,"ALL INITIALIZATION COMPLETED\n\r");
+		xprintf (UXPRT,"HARDWARE INITIALIZATION COMPLETED\n\r");
 	return;
 }
