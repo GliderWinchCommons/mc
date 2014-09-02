@@ -8,8 +8,10 @@ LDFILE	=stm32_flash.ld
 
 # Current directory
 CURDIR=.
-
-SRCS = $(NAME).c startup_stm32f4xx.s syscalls.c 
+SRCS =
+#SRCS += startup_stm32f4xx.s
+SRCS += vector.c
+SRCS += $(NAME).c syscalls.c 
 SRCS += CAN_test_msgs.c
 SRCS += CAN_error_msgs.c
 SRCS += mc_msgs.c
