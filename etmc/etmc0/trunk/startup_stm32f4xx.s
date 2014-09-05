@@ -97,10 +97,10 @@ LoopFillZerobss:
   bl  SystemInit
 /* Call static constructors */
   bl __libc_init_array
-/* Call the applications entry point.*/
+/* Call the application's entry point.*/
   bl  main
   bx  lr
-.size  Reset_Handler, .-Reset_Handler
+/*.size  Reset_Handler, .-Reset_Handler */
 
 /**
  * @brief  This is the code that gets called when the processor receives an
@@ -113,7 +113,7 @@ LoopFillZerobss:
 Default_Handler2:
 Infinite_Loop:
   b  Infinite_Loop
-  .size  Default_Handler, .-Default_Handler
+/*  .size  Default_Handler, .-Default_Handler */
 /******************************************************************************
 *
 * The minimal vector table for a Cortex M3. Note that the proper constructs
@@ -403,10 +403,9 @@ g_pfnVectors:
 
    .weak      TIM8_CC_IRQHandler
    .thumb_set TIM8_CC_IRQHandler,Default_Handler55
-/*
+
    .weak      DMA1_Stream7_IRQHandler
    .thumb_set DMA1_Stream7_IRQHandler,Default_Handler56
-*/
 /*
    .weak      FSMC_IRQHandler
    .thumb_set FSMC_IRQHandler,Default_Handler57
@@ -476,8 +475,7 @@ g_pfnVectors:
 
    .weak      DMA2_Stream7_IRQHandler
    .thumb_set DMA2_Stream7_IRQHandler,Default_Handler79
-*/
-/*
+
    .weak      USART6_IRQHandler
    .thumb_set USART6_IRQHandler,Default_Handler80
 */

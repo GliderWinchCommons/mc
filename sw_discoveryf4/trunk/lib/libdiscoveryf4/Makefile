@@ -5,15 +5,40 @@
 #*******************************************************************************/ 
 LIBNAME		= libdiscoveryf4
 
+###################################################
+
+# Check for valid float argument
+# NOTE that you have to run make clean after
+# changing these as hardfloat and softfloat are not
+# binary compatible
+#FLOAT_TYPE = soft
+
+ifneq ($(FLOAT_TYPE), hard)
+ifneq ($(FLOAT_TYPE), soft)
+override FLOAT_TYPE = soft
+endif
+endif
+
+###################################################
 # Prefix the name for the particular toolchain
-PREFIX		= arm-none-eabi
-# The path for the commands to find the compiler, linker, et al.
-TOOLDIR 	= $(HOME)/CodeSourcery/Sourcery_G++_Lite/bin
-CC		= $(TOOLDIR)/$(PREFIX)-gcc
-LD		= $(TOOLDIR)/$(PREFIX)-ld
-OBJCOPY		= $(TOOLDIR)/$(PREFIX)-objcopy
-OBJDUMP		= $(TOOLDIR)/$(PREFIX)-objdump
-AR		= $(TOOLDIR)/$(PREFIX)-ar
+PREFIX		= arm-none-eabi-
+
+CC	=$(PREFIX)gcc
+LD	=$(PREFIX)ld
+OBJCOPY	=$(PREFIX)objcopy
+SIZE	=$(PREFIX)size
+OBJDUMP	=$(PREFIX)objdump
+
+#CFLAGS		= -Os -g -Wall -Wextra -fno-common -mcpu=cortex-m4 -mthumb -Wstrict-prototypes
+CFLAGS  = -std=gnu99 -g -Os -Wall
+CFLAGS += -mlittle-endian -mthumb -mthumb-interwork -nostartfiles -mcpu=cortex-m4
+
+ifeq ($(FLOAT_TYPE), hard)
+CFLAGS += -fsingle-precision-constant -Wdouble-promotion
+CFLAGS += -mfpu=fpv4-sp-d16 -mfloat-abi=hard
+else
+CFLAGS += -msoft-float
+endif
 
 # Current directory
 CURDIR=.
@@ -24,12 +49,7 @@ LIBF4D		= $(CURDIR)/..
 # Directory path--includes for .h and .c files common to all routines
 LIBCOMMONALL      = $(CURDIR)/../../../../common_all/trunk
 
-# Library directory path
-LGCC		= $(HOME)/CodeSourcery/Sourcery_G++_Lite/lib/gcc/arm-none-eabi/4.5.2/thumb2
-LOTHER		= $(HOME)/CodeSourcery/Sourcery_G++_Lite/arm-none-eabi/lib/thumb2
-
 # Compiler flags -Os = no optimization, -Os = minimum space, -O3 = fastest
-CFLAGS		= -Os -g -Wall -Wextra -fno-common -mcpu=cortex-m4 -mthumb -Wstrict-prototypes
 CFLAGS += -I$(LIBCOMMONALL)
 CFLAGS += -I$(LIBF4D)
 CFLAGS += -I$(LIBF4D)/libusartstm32f4
@@ -41,6 +61,7 @@ AFLAGS  = -mcpu=cortex-m4 -mthumb
 
 ARFLAGS	= rcsv
 #ARFLAGS		= rcs
+
 
 #OBJS	+= default_irq_handler.o
 OBJS	+= 4x20lcd.o

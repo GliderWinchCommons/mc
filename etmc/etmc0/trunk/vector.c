@@ -125,7 +125,201 @@ void WEAK     CAN2_TX_IRQHandler(void);               /* CAN2 TX                
 void WEAK     CAN2_RX0_IRQHandler(void);              /* CAN2 RX0                     */
 void WEAK     CAN2_RX1_IRQHandler(void);              /* CAN2 RX1                     */
 void WEAK     CAN2_SCE_IRQHandler(void);              /* CAN2 SCE                     */
-void WEAK     OTG_FS_IRQHandler(void);                /* USB OTG FS                   */
+void WEAK     OTG_FS_IRQHandler(void);                /* USB OTG FS                   
+> I expect with the hw fp enabled there is little benefit to using the
+> polynomial approximations but it is also galling to calculate things to
+> many decimal digit accuracy when just a few will do.  The double
+> precision transcendentals are just obnoxious for most control systems
+> applications.   I looked at the atan listing the fp
+> multiply-accumulates are sweet.  Is this atan or atan2.  Going through
+> 90 degrees it would seem that atan2 would allow faster code for the
+> same accuracy.  There is nothing magic about the quarter sine and
+> raised cosine functions I use for the tapers.  They are just convenient
+> for setting the slope at the end points I want for each application. 
+> In fact, because I need to delay a bit after the cable speed peaks
+> before beginning to ramp up the tension to the climb tension, I
+> switched from a raised cosine to a quarter sine taper to better match
+> the slope of the tension curve at the junction.  But the quarter sign
+> still sometimes has a noticeable kink in the transition.  The math to
+> make a polynomial that matches the initial tension and slope would not
+> be that difficult.  Doing it with the sine function would be much more
+> difficult.  Again, this is all premature optimization at this point.  
+> 
+> In my work we generate what we call kernel filter functions as well as
+> sine/cosines with segmented polynomials.  For our applications we use
+> more segments and lower order polynomials for speed but we often need
+> 20 bit accuracy and above.   In FPGAs we have large dual port block
+> SRAMs and we tend to use linear fits but maybe 512 segments.  The 18x18
+> multipliers are limited  and memory is more available.  In ASICs we can
+> tend to use quadratic polynomials but much fewer segments, typically 16
+> to 64 depending on the accuracy needed.  There we can tailor the
+> multiplier size and this allows us to get high speed with the least
+> resources consumed.
+> 
+> -George
+> 
+> 
+> 
+> 
+> 
+>  
+> 
+> -----Original Message-----
+> From: Donald E Haselwood [mailto:dhaselwood@verizon.net] 
+> Sent: Tuesday, September 02, 2014 12:48 PM
+> To: MOORE,GEORGE (K-Spokane,ex1)
+> Cc: c.wells@ieee.org
+> Subject: RE: STM32 Core Coupled Memory
+> 
+> George,
+> 
+> On Tue, 2014-09-02 at 18:11 +0000, george_moore@keysight.com wrote:
+> > Don,
+> > 
+> > Got the Java MC/PS working last night for multiple launches before 
+> > retiring early - two back-to-back meetings with Europe this morning.
+> > Will be ready to start on the F4 MC this evening.
+> > 
+> > There now seems to be a motivation to keep the memory footprint small. 
+> > I had asked about using chars for flags and you had indicated you 
+> > thought it was simpler to just always use ints and that chars might 
+> > not be optimized.  But now there is a value for conserving memory so I 
+> > would ask again, should I use chars for flags and in general be aware 
+> > of the size of all the memory being allocated?
+> > 
+> It depends on what memory is being conserved.  There is plenty of flash, but not RAM.  Using chars may increase the amount of flash used as it may take more bytes for the instructions.  I think the STM32/thumb2 does OK with 1/2 words, i.e. 2 bytes, but I'd have to look up if the instructions are 32b or 16b.  Also, I'm not clear on whether a 32b instruction executes as fast as 16b, as it gets in to how the pipeline works.  Even though the flash has 5 wait states when the clock is at 168MHz the flash is read in 128b chunks (IIRC!).
+> 
+> To get the advantage of putting code in CCM for speed improvement is a bit of an undertaking.  The STM32F407VGT6 has a 64K CCM, but that is not big enough to hold everything.  There is about 50-60K of "overhead" in subroutines.  Using chars vs ints for flags would be a drop in the ocean.
+> 
+> Putting the stack on CCM is something that is dog-easy to do and would some advantage since the stack gets used a lot.
+> 
+> When it comes to speed and the MC the answer is to use the interrupt levels (or RTOS which in a sense does the same thing) and separate out things that are fast (e.g. control law), medium (e.g. polling various switches), and slow (e.g. printfs, LCD display), and not depend on getting a single polling loop uber-fast.
+> 
+> > Something I thought about during my backpacking trip I tried out this 
+> > morning taking a break.  Instead of using trig functions for shaping 
+> > the tension during the startup taper up, rotation taper down, climb 
+> > ramp up, and end-of-launch (EOL) taper down just use polynomials.  It 
+> > looks like this will work very well and would completely avoid all 
+> > trig in the MC.  For each of these transition regions I currently use 
+> > raised cosine or quarter sine functions.  With a cubic equation I can 
+> > match the y values at two x-axis points and the slopes at two points 
+> > which is generally what I am trying to do anyway with these trip functions.
+> > Attached is a pdf of the startup tension profile comparing a raised 
+> > cosine to a  cubic approximation that is 0 with 0 slope at the 
+> > beginning and at ground tension level (here 1) and slope 0 at the end 
+> > of the taper up.  Blue is the polynomial and red is the raised cosine 
+> > - for our purposes effectively the same.  I can similarly match all 
+> > the trig functions I currently use equally well and even better for 
+> > the quarter sine.  Essentially I am doing a Taylor series for the 
+> > desired profiles that matches these trig functions.  This can easily 
+> > be done with integer math if I want to avoid the use of fp and the 
+> > coefficients
+> > (4 sets of 4) can all be calculated by the HC except the cljmb ramp up 
+> > where the starting point and slope depends on when the cable speed peak
+> > occurs.   My arguments always start at 0 and go to a bounded value so
+> > the dynamic range required is not that great - 32 bits would be far 
+> > more than sufficient and likely 16 bits would suffice for the 
+> > coefficients.  The ones based on time would generally span less than 8 
+> > seconds (climb tension ramp up) so 9 bits is the maximum number of 
+> > bits for the time (64 ticks per second x 8 seconds.)  Using Horner's 
+> > equation you don't explicitly square or cube these values and I 
+> > believe
+> > 16x16 multiplies would likely be more than sufficient.
+> 
+> There are only 32x32 multiplies and those execute in one clock cycle.
+> 
+> >   The other two
+> > are based on cable speed and 8 or 9 bits would be more than sufficient.
+> > Alas, my penchant for optimization is rearing its ugly head.   For the
+> > present I will leave in the trig functions but plan to move to
+> > polynomials for the long run.    
+> > 
+> 
+> Yes, as you note, the trig functions are merely polynomial approximations anyway, so it is a case of trading off some accuracy for speed.
+> 
+> It looks like the hw fp is so fast that there is little advantage to using integers.  I'll forward a note I sent to Charlie with an attached .list file.  They make use of the fp mac and just rip down the list.
+> 
+> If we were using a PIC, or the classic Arduino, then the efficiencies you have in mind would make a lot of sense.  With the Cortex-M4 the savings are small, and maybe even non-existent when the overhead is thrown in.
+> 
+> > 
+> > Along the same lines, I believe for the accuracy (~0.5 degrees) I 
+> > need, the atan function for the cable angle sensor could be easily 
+> > replaced with a couple of polynomial approximations - one for angles 
+> > less that
+> > 45 and one for angles greater than 45.  One won't work because the 
+> > argument approaches infinity near 90 degrees, i.e. use y/x up to 45 
+> > and x/y for greater than 45. The swap over point occurs when x = y.  
+> > Too much time spent thinking about this already.
+> > 
+> I looked at what was supposed to be the source code for the gnu atan function.  IIRC it used a 5 or 6 term polynomial for each of 5 segments.
+> It looks like a lot of thought has been given to making the trig functions fast.
+> 
+> 
+> Don
+> 
+> 
+> > -George
+> > 
+> > -----Original Message-----
+> > From: MOORE,GEORGE (K-Spokane,ex1)
+> > Sent: Monday, September 01, 2014 3:26 PM
+> > To: 'Charles Wells'; Donald E Haselwood
+> > Subject: RE: STM32 Core Coupled Memory
+> > 
+> > Don,
+> > 
+> > Sounds like an easy way to significantly increase speed.  When I get the MC coded on the F4 we need to see how big the time sensitive elements are and see if they will fit in the 8K bytes.  Another reason to avoid/minimize the use of printfs.
+> > 
+> > -George
+> > 
+> > -----Original Message-----
+> > From: c.wells [mailto:c.wells@tampabay.rr.com]
+> > Sent: Friday, August 29, 2014 5:13 PM
+> > To: Donald E Haselwood
+> > Cc: MOORE,GEORGE (K-Spokane,ex1)
+> > Subject: Re: STM32 Core Coupled Memory
+> > 
+> > Don,
+> > 
+> > Good idea.  Assuming the Chibios stuff is in its own linker section, it should be simply a matter of fiddling with the ".ld" file.
+> > 
+> > Char1ie
+> > 
+> > 
+> > On Aug 29, 2014, at 12:42 PM, Donald E Haselwood <dhaselwood@verizon.net> wrote:
+> > 
+> > > Charlie,
+> > > 
+> > > As I remember you said that some RTOS placed the stack on CCM memory 
+> > > because it is faster.  I ran across this on the STM32F3--
+> > > 
+> > > "Boosted execution of control algorithms.
+> > > Easier support for meta-language tools.
+> > > Real-time performance:
+> > > - CCM-SRAM (core coupled memory): 8 Kbytes of SRAM mapped to the 
+> > > instruction bus; critical routines loaded in the 8-Kbyte CCM at 
+> > > startup can be completed at full speed with zero wait states, 
+> > > achieving 94 Dhrystone MIPS and CoreMark score 155 at 72 MHz."
+> > > 
+> > > 
+> > > 
+> > > The STM32F407 (DiscoveryF4) has 64K CCM, and running with the clock 
+> > > at
+> > > 168 MHz the flash wait states is set to 5, so the speed up by 
+> > > running out of the SRAM that is on the instruction bus would make a 
+> > > big difference.
+> > > 
+> > > In addition to putting the stack on CCM it would make sense to 
+> > > locate the whole RTOS there as well.  The Chibios RTOS is only 5-7KB 
+> > > so there is plenty of room.
+> > > 
+> > > Don
+> > > 
+> > > 
+> > 
+> 
+> 
+> */
 void WEAK     DMA2_Stream5_IRQHandler(void);          /* DMA2 Stream 5                */
 void WEAK     DMA2_Stream6_IRQHandler(void);          /* DMA2 Stream 6                */
 void WEAK     DMA2_Stream7_IRQHandler(void);          /* DMA2 Stream 7                */

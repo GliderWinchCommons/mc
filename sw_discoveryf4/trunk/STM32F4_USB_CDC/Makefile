@@ -24,10 +24,9 @@ endif
 
 ###################################################
 
-BINPATH=~/CodeSourcery/Sourcery_G++_Lite/bin
-CC=$(BINPATH)/arm-none-eabi-gcc
-OBJCOPY=$(BINPATH)/arm-none-eabi-objcopy
-SIZE=$(BINPATH)/arm-none-eabi-size
+CC=arm-none-eabi-gcc
+OBJCOPY=arm-none-eabi-objcopy
+SIZE=arm-none-eabi-size
 
 CFLAGS  = -std=gnu99 -g -Os -Wall -Tstm32_flash.ld
 CFLAGS += -mlittle-endian -mthumb -mthumb-interwork -nostartfiles -mcpu=cortex-m4

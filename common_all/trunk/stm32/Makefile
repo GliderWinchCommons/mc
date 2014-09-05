@@ -5,15 +5,29 @@
 #*******************************************************************************/ 
 LIBNAME		= libcommon_all
 
+###################################################
+
+# Check for valid float argument
+# NOTE that you have to run make clean after
+# changing these as hardfloat and softfloat are not
+# binary compatible
+#FLOAT_TYPE = soft
+
+ifneq ($(FLOAT_TYPE), hard)
+ifneq ($(FLOAT_TYPE), soft)
+override FLOAT_TYPE = soft
+endif
+endif
+
+###################################################
 # Prefix the name for the particular toolchain
-PREFIX		= arm-none-eabi
-# The path for the commands to find the compiler, linker, et al.
-TOOLDIR 	= $(HOME)/CodeSourcery/Sourcery_G++_Lite/bin
-CC		= $(TOOLDIR)/$(PREFIX)-gcc
-LD		= $(TOOLDIR)/$(PREFIX)-ld
-OBJCOPY		= $(TOOLDIR)/$(PREFIX)-objcopy
-OBJDUMP		= $(TOOLDIR)/$(PREFIX)-objdump
-AR		= $(TOOLDIR)/$(PREFIX)-ar
+PREFIX		= arm-none-eabi-
+
+CC	=$(PREFIX)gcc
+LD	=$(PREFIX)ld
+OBJCOPY	=$(PREFIX)objcopy
+SIZE	=$(PREFIX)size
+OBJDUMP	=$(PREFIX)objdump
 
 # Define path to source files (one directory "up").
 VPATH=../
@@ -21,9 +35,6 @@ VPATH=../
 # Current directory
 CURDIR	=.
 
-# Library directory path--compile and stuff
-LGCC	= $(HOME)/CodeSourcery/Sourcery_G++_Lite/lib/gcc/arm-none-eabi/4.5.2/thumb2
-LOTHER	= $(HOME)/CodeSourcery/Sourcery_G++_Lite/arm-none-eabi/lib/thumb2
 
 # Library directory path--common includes
 LIBCOMMONALL = $(VPATH)
@@ -31,8 +42,16 @@ LIBCOMMONALL = $(VPATH)
 # Navigation to libraries specific to the f4 and discoveryf4
 LIBF4D	= $(CURDIR)/../../../sw_discoveryf4/trunk
 
-# Compiler flags -Os = minimum space, -O3 = fastest
-CFLAGS	= -Os -g -Wall -Wextra -Iinclude -fno-common -mcpu=cortex-m3 -mthumb -Wstrict-prototypes -fno-builtin-putc
+# Compiler flags -Os = no optimization, -Os = minimum space, -O3 = fastest
+CFLAGS  = -std=gnu99 -g -Os -Wall
+CFLAGS += -mlittle-endian -mthumb -mthumb-interwork -nostartfiles -mcpu=cortex-m4
+
+ifeq ($(FLOAT_TYPE), hard)
+CFLAGS += -fsingle-precision-constant -Wdouble-promotion
+CFLAGS += -mfpu=fpv4-sp-d16 -mfloat-abi=hard
+else
+CFLAGS += -msoft-float
+endif
 CFLAGS += -I$(LIBCOMMONALL)
 CFLAGS += -I$(LIBF4D)/lib
 CFLAGS += -I$(LIBF4D)/lib/libdiscoveryf4

@@ -122,7 +122,7 @@ void init_hardware_mc (void)
 	
 	/* ---------------------- Let the Op know it is alive ------------------------------------ */
 	/* Announce who we are. ('xprintf' uses uart number to deliver the output.) */		
-	xprintf(UXPRT,  " \n\rDISCOVERY F4 MASTER CONTROLLER: 08/30/2014  v0\n\r");
+	xprintf(UXPRT,  " \n\rDISCOVERY F4 MASTER CONTROLLER: 09/04/2014  v0\n\r");
 	/* Make sure we have the correct bus frequencies */
 	xprintf (UXPRT, "   hclk_freq (MHz) : %9u...............................\n\r",  hclk_freq/1000000);	
 	xprintf (UXPRT, "  pclk1_freq (MHz) : %9u...............................\n\r", pclk1_freq/1000000);	
@@ -170,6 +170,7 @@ void init_hardware_mc (void)
 		}
 		xprintf (UXPRT,"CAN initialization completed\n\r");
 	/* --------------------- Hardware is ready, so do program-specific startup ---------------------------- */
+
 
 	/* --------------------- Decoding chars from USB-serial port ------------------------------------------ */
 		mc_msg_init();

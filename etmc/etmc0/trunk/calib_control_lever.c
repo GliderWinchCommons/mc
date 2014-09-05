@@ -6,6 +6,7 @@
 *******************************************************************************/
 
 #include "calib_control_lever.h"
+#include "etmc0.h"
 #include "mc_msgs.h"
 #include "adc_mc.h"
 #include "libopencm3/stm32/f4/gpio.h"
@@ -19,8 +20,10 @@
 #include "4x20lcd.h"
 #include "beep_n_lcd.h"
 
-extern char spi_ledout[SPI2SIZE];
-extern char spi_swin[SPI2SIZE];
+extern struct ETMCVAR etmcvar;
+
+#define spi_ledout etmcvar.spi_ledout
+#define spi_swin etmcvar.spi_swin
 
 
 /* ***********************************************************************************************************
@@ -36,9 +39,9 @@ extern char spi_swin[SPI2SIZE];
 #define CL_ADC_CHANNEL 	0
 #define FLASHCOUNT (sysclk_freq/2);	// Orange LED flash increment
 
-int cal_cl;			// calibrated control lever output
-int cloffset = 0, clmax = 0;	// Min and maximum values observed for control lever
-int clscale = 0;		// scale value for generating calibrated output
+static int cal_cl;			// calibrated control lever output
+static int cloffset = 0, clmax = 0;	// Min and maximum values observed for control lever
+static int clscale = 0;		// scale value for generating calibrated output
 
 void calib_control_lever(void)
 {
@@ -126,3 +129,14 @@ void calib_control_lever(void)
 	xprintf 	(UXPRT, "   Control Lever Initial Calibration Complete\n\r");
 	return;
 }
+/* ***********************************************************************************************************
+ * int calib_control_lever_get(void);
+ * @brief	:
+ * @return	: Calibrated Control lever: 0 - 4095 (but could be slightly negative) -> 0 - 100%
+ ************************************************************************************************************* */
+int calib_control_lever_get(void)
+{
+	return cal_cl;
+}
+
+

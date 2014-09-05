@@ -1,7 +1,5 @@
-BINPATH=~/CodeSourcery/Sourcery_G++_Lite/bin
-
-CC=$(BINPATH)/arm-none-eabi-gcc
-AR=$(BINPATH)/arm-none-eabi-ar
+CC=arm-none-eabi-gcc
+AR=arm-none-eabi-ar
 
 ###################################################
 

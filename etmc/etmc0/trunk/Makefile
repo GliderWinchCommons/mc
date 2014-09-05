@@ -9,8 +9,8 @@ LDFILE	=stm32_flash.ld
 # Current directory
 CURDIR=.
 SRCS =
-#SRCS += startup_stm32f4xx.s
-SRCS += vector.c
+SRCS += startup_stm32f4xx.s
+#SRCS += vector.c
 SRCS += $(NAME).c syscalls.c 
 SRCS += CAN_test_msgs.c
 SRCS += CAN_error_msgs.c
@@ -18,7 +18,7 @@ SRCS += mc_msgs.c
 SRCS += init_hardware_mc.c
 SRCS += calib_control_lever.c
 SRCS += beep_n_lcd.c
-#SRCS += states.c
+SRCS += mc_state.c
 
 ###################################################
 
@@ -26,6 +26,7 @@ SRCS += beep_n_lcd.c
 # NOTE that you have to run make clean after
 # changing these as hardfloat and softfloat are not
 # binary compatible
+
 ifneq ($(FLOAT_TYPE), hard)
 ifneq ($(FLOAT_TYPE), soft)
 override FLOAT_TYPE = soft
@@ -36,12 +37,11 @@ endif
 # Prefix the name for the particular toolchain
 PREFIX		= arm-none-eabi-
 
-TOOLDIR	=~/CodeSourcery/Sourcery_G++_Lite/bin
-CC	=$(TOOLDIR)/$(PREFIX)gcc
-LD	=$(TOOLDIR)/$(PREFIX)ld
-OBJCOPY	=$(TOOLDIR)/$(PREFIX)objcopy
-SIZE	=$(TOOLDIR)/$(PREFIX)size
-OBJDUMP	=$(TOOLDIR)/$(PREFIX)objdump
+CC	=$(PREFIX)gcc
+LD	=$(PREFIX)ld
+OBJCOPY	=$(PREFIX)objcopy
+SIZE	=$(PREFIX)size
+OBJDUMP	=$(PREFIX)objdump
 
 CFLAGS  = -std=gnu99 -g -Os -Wall
 CFLAGS += -mlittle-endian -mthumb -mthumb-interwork -nostartfiles -mcpu=cortex-m4
@@ -102,9 +102,18 @@ LIBS 	 = -lm -lusbf4 -lstdperiph -lusbdevcdc -lusbcore -lusbdevcore  -lusbf4  -l
 #   our stuff
 LIBS	+= -ldiscoveryf4 -lmiscstm32f4 -lusartstm32f4
 
+
 LDFLAGS	 = -T$(LDFILE)
 
 OBJS = $(SRCS:.c=.o)
+
+# Paths for openocd and automatic flashing
+OPENOCD_BASE	= /usr/local
+OPENOCD		= $(OPENOCD_BASE)/bin/openocd
+OPENOCD_SCRIPTS	= $(OPENOCD_BASE)/share/openocd/scripts
+OPENOCD_FLASHER	= $(OPENOCD_SCRIPTS)/interface/stlink-v2.cfg
+
+OPENOCD_BOARD	= $(OPENOCD_SCRIPTS)/board/stm32f4discovery.cfg
 
 ###################################################
 
@@ -119,6 +128,7 @@ $(NAME).elf: $(SRCS)
 	$(CC) $(CFLAGS) $^ -o $@ $(LIBPATHS) $(LIBS) $(LDFLAGS)
 	$(OBJCOPY) -O ihex   $(NAME).elf $(NAME).hex
 	$(OBJCOPY) -O binary $(NAME).elf $(NAME).bin
+	$(OBJCOPY) -O srec   $(NAME).elf $(NAME).srec
 	$(OBJDUMP) -S $(NAME).elf > $(NAME).list
 
 clean:
@@ -129,11 +139,16 @@ clean:
 #	$(MAKE) clean -C lib # Remove this line if you don't want to clean the libs as well
 	
 flash: images
-	@printf "  FLASHING   $(NAME)\n"
+	@printf "  FLASH   $(NAME).srec\n"
 	@# IMPORTANT: Don't use "resume", only "reset" will work correctly!
-	# Kill running instances of the server
-#	killall st-util
-	st-flash write $(NAME).bin 0x08000000
+	$(Q)$(OPENOCD) -s $(OPENOCD_SCRIPTS) \
+		       -f $(OPENOCD_FLASHER) \
+		       -f $(OPENOCD_BOARD) \
+		       -c "init" -c "reset halt" \
+		       -c "flash write_image erase $(NAME).srec" \
+		       -c "reset" \
+		       -c "shutdown" $(NULL)
+
 
 .PHONY: images clean
 

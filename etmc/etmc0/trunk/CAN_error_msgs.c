@@ -79,7 +79,7 @@ void Errors_misc(int x)
 	if ( x > 0 ) return; // Expect negative numbers
 	x = 1 - x;
 	if ( x >= THIRDGROUPSIZE)  return;
-	err_ctrs[x + (FIRSTGROUPSIZE + SECONDGROUPSIZE) ] += 1;
+	err_ctrs[x + (FIRSTGROUPSIZE + SECONDGROUPSIZE) - 1 ] += 1;
 	return;
 }
 /* **************************************************************************************

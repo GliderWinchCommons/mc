@@ -155,7 +155,6 @@ static struct CANRCVBUF* msg_get_usb(void)
 struct CANRCVBUF* msg_get(void)
 {
 	struct CANRCVBUF* p;
-	int tmp;
 
 	/* Add all incoming msgs to MC circular buffer */
 
@@ -164,7 +163,7 @@ struct CANRCVBUF* msg_get(void)
 	while ( (p=msg_get_usb()) != 0)
 	{
 		canmcbuf_add(p); // Add to MC buffer
-		tmp = CAN_gateway_send(&canrcvbuf); // Add to CAN xmit buffer
+		CAN_gateway_send(&canrcvbuf); // Add to CAN xmit buffer
 	}
 #endif
 
