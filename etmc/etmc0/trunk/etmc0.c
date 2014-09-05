@@ -249,7 +249,9 @@ unsigned int t_ctr = 0;
 	etmcvar.unixtime = 1409768561; // GMT: Wed, 03 Sep 2014 18:22:41 GMT	
 
 	mc_state_init(&etmcvar);
-//	calib_control_lever();
+	#if George
+	calib_control_lever();
+	#endif
 	/* --------------------- Initial times ---------------------------------------------------------------------------- */
 		t_led        = DTWTIME + FLASHCOUNT; 
 		t_timeKeeper = DTWTIME + SIXTYFOURTH;
