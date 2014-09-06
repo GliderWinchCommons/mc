@@ -390,7 +390,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
                 switch (statestuff.state)
                 {
                     case 0: // prep                        
-			if ( calib_control_lever_get() < (4095/10) )
+			if ( calib_control_lever_get() < (float) 0.1 )
                         { 
                             statestuff.state = 1; // going to armed state
                         //    // setStateled(1);	// ??? LED
@@ -401,7 +401,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
                     case 1: // armed
                         
                         if ((statestuff.parametersRequestedFlag == 0) 
-                                && (calib_control_lever_get() > (4095/90)))
+                                && (calib_control_lever_get() > (float) 0.9))
                         {
                             // request launch parameters
 				can.id = CANID_PARAM_REQUEST;

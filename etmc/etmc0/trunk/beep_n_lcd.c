@@ -39,10 +39,10 @@ void delay_tenth_sec(unsigned int t)
 {
 	int i;
 	unsigned int tp = sysclk_freq/10;	// Increment for 1/10th sec
-	unsigned int t0 = DTWTIME + tp;
+	volatile unsigned int t0 = DTWTIME + tp;
 	for (i = 0; i < t; i++)
 	{
-		while (((int)(DTWTIME - t0)) < 0) // Has the time expired?
+		while (((int)(DTWTIME - t0)) < 0); // Has the time expired?
 		t0 += tp;
 	}
 	return;

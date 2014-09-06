@@ -52,7 +52,6 @@ void calib_control_lever(void)
 
 	xprintf (UXPRT,"\nBegin control level calibration\n\r");
 
-	GPIO_BSRR(GPIOA) = 1 << 8;	// Turn on beeper
 	while(clcalstate < 6)
 	{
 		if (((int)(DTWTIME - t_led)) > 0) // Has the time expired?
@@ -127,7 +126,6 @@ void calib_control_lever(void)
 			t_led += FLASHCOUNT; 	// Set next toggle time		
 		}
 	}	
-	GPIO_BSRR(GPIOA) = 1 << (8 + 16);	// Turn off beeper
 	xprintf(UXPRT, "  cloffset: %10d clmax: %10d \n\r", cloffset, clmax);
 	xprintf 	(UXPRT, "   Control Lever Initial Calibration Complete\n\r");
 	return;
