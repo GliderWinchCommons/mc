@@ -114,6 +114,7 @@ void init_hardware_mc (void)
 	    //  bsp_uart_int_init_number(u32 uartnumber, u32 baud,u32 rxbuffsize, u32 txbuffsize, u32 dma_tx_int_priority);
 		bsp_uart_int_init_number(UARTGATE, 230400, 256, 256, 0x40);	// UART used for the Gateway
 		bsp_uart_int_init_number(UXPRT,    115200, 256, 256, 0xB0);	// UART used for debugging		
+		
 		lcd_init(UARTLCD); 						// UART used for the LCD screen
 										
 	/* Setup STDOUT, STDIN (a shameful sequence until we sort out 'newlib' and 'fopen'.)  The following 'open' sets up 
@@ -174,8 +175,6 @@ void init_hardware_mc (void)
 
 	/* --------------------- Decoding chars from USB-serial port ------------------------------------------ */
 		mc_msg_init();
-
-
 		xprintf (UXPRT,"HARDWARE INITIALIZATION COMPLETED\n\r");
 	return;
 }

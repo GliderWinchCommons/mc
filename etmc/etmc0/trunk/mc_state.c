@@ -93,20 +93,20 @@ struct MCSIMULATIONVAR
         int elapsedTics;
         double simulationStrtTime;      // milliseconds since Unix Epoc
         double timeMillis;
-        float nextStepTime;
-        double remainingTimeMillis;
+        //float nextStepTime;
+        //double remainingTimeMillis;
 };
 
 struct MCMEASUREMENTS
 {
-        float calibTension;
-        float calibMotorSpeed;
-        float calibCableSpeed;
-        float calibCableAngle;
+        float lastTension;
+        float lastMotorSpeed;
+        float lastCableSpeed;
+        float lastCableAngle;
 };
 
 
-struct MCSTATESTUFF
+struct MCSTATEVAR
 {
        // state machine stuff
         int state;
@@ -148,7 +148,7 @@ static struct MCSTATEVAR statevar;
 static struct MCSCALEOFFSET scaleoffset;
 static struct MCSIMULATIONVAR simulationvar;
 static struct MCMEASUREMENTS measurements;
-static struct MCSTATESTUFF statestuff;
+static struct MCSTATEVAR statevar;
 static struct MCMSGSUSED msgsused;
 
 /* **************************************************************************************
@@ -174,28 +174,28 @@ void mc_state_launch_init(void)
 	t_lcd        = DTWTIME + LCDPACE;
 
 // struct MCMEASUREMENTS
-        measurements.calibTension = 0;
-        measurements.calibMotorSpeed = 0;
-        measurements.calibCableSpeed = 0;
-        measurements.calibCableAngle = 0;
+        measurements.lastTension = 0;
+        measurements.lastMotorSpeed = 0;
+        measurements.lastCableSpeed = 0;
+        measurements.lastCableAngle = 0;
 
 // struct MCSTATESTUF
-        statestuff.state = 0;
-        statestuff.speedMessageFlag = 0;
-        statestuff.tensionMessageReceivedFlag = 0;
-        statestuff.paramReceivedFlag = 0;
-        statestuff.parametersRequestedFlag = 0;
-        statestuff.launchResetFlag = 1;
-        statestuff.startProfileTics = 0;
-        statestuff.startRampTics = 0;
-        statestuff.startRampTension = 0;
-        statestuff.peakCableSpeed = 0;
-        statestuff.taperFlag = 1;
-        statestuff.taperTics = 0;
-        statestuff.minCableSpeed = 0;
-        statestuff.setptTension = 0;
-        statestuff.setptTorque = 0;
-        statestuff.filt_torque = 0;
+        statevar.state = 0;
+        statevar.speedMessageFlag = 0;
+        statevar.tensionMessageReceivedFlag = 0;
+        statevar.paramReceivedFlag = 0;
+        statevar.parametersRequestedFlag = 0;
+        statevar.launchResetFlag = 1;
+        statevar.startProfileTics = 0;
+        statevar.startRampTics = 0;
+        statevar.startRampTension = 0;
+        statevar.peakCableSpeed = 0;
+        statevar.taperFlag = 1;
+        statevar.taperTics = 0;
+        statevar.minCableSpeed = 0;
+        statevar.setptTension = 0;
+        statevar.setptTorque = 0;
+        statevar.filt_torque = 0;
 
 // struct MCRCVDCANMSGS
 	mc_state_msgs_init(&msgsused);
@@ -275,8 +275,7 @@ void mc_state_init(struct ETMCVAR* petmcvar)
 //        simulationvar.simulationStartTime = (passed from etmc0.c to us)
         simulationvar.timeMillis = 0;
         simulationvar.nextStepTime = 0;
-        simulationvar.remainingTimeMillis = 0;
-
+        //simulationvar.remainingTimeMillis = 0;
 
 	mc_state_launch_init();
 	
@@ -290,7 +289,7 @@ void mc_state_init(struct ETMCVAR* petmcvar)
 static void sendStateMessage(int newState)
 {
 	struct CANRCVBUF stateMessage;
-        stateMessage.id = CANID_STATE;
+    stateMessage.id = CANID_STATE;
 	stateMessage.dlc = 1;
 	stateMessage.cd.uc[0] = newState + 1;
 	msg_out_mc(&stateMessage);
@@ -303,12 +302,10 @@ static void sendStateMessage(int newState)
  * ************************************************************************************** */
 unsigned int msgrcvlist = 0;	// Accumulate msgs received after sending a time msg
 /* Bits within msgrcvlist word */
-#define RCV_CANID_TENSION	0x1
+#define RCV_CANID_TENSION       0x1
 #define RCV_CANID_CABLE_ANGLE	0x2
-#define RCV_CANID_MOTOR		0x4
+#define RCV_CANID_MOTOR		    0x4
 #define RCV_CANID_LAUNCH_PARAM	0x8
-
-#define RCV_ALLNEEDEDMSGS (RCV_CANID_TENSION | RCV_CANID_MOTOR)
 
 void mc_state_msg_select(struct CANRCVBUF* pcan)
 {
@@ -317,24 +314,24 @@ void mc_state_msg_select(struct CANRCVBUF* pcan)
 	case CANID_TENSION:		 // 0x38000000	 448 
 		msgsused.lastrcvdTension.can = *pcan;
 		msgsused.lastrcvdTension.flag += 1;
-		measurements.calibTension = ((float)pcan->cd.us[0] - scaleoffset.tensionOffset) * scaleoffset.tensionScale;
+		measurements.lastTension = ((float)pcan->cd.us[0] - scaleoffset.tensionOffset) * scaleoffset.tensionScale;
 		msgrcvlist |= RCV_CANID_TENSION;
 		break;
-	case CANID_CABLE_ANGLE:		// 0x3A000000	 464 
+	case CANID_CABLE_ANGLE:	// 0x3A000000	 464 
 		msgsused.lastrcvdCableAngle.can = *pcan;
-                measurements.calibCableAngle = ((float)pcan->cd.uc[0] - scaleoffset.cableAngleOffset) * scaleoffset.cableAngleScale;
-                if (statestuff.taperFlag == 0 && measurements.calibCableAngle > statevar.TAPERANGLETRIG)
+                measurements.lastCableAngle = ((float)pcan->cd.uc[0] - scaleoffset.cableAngleOffset) * scaleoffset.cableAngleScale;
+                if (statevar.taperFlag == 0 && measurements.lastCableAngle > statevar.TAPERANGLETRIG)
                 {
-                	statestuff.taperFlag = 1;
-                	statestuff.taperTics = simulationvar.elapsedTics;
+                	statevar.taperFlag = 1;
+                	statevar.taperTics = simulationvar.elapsedTics;
                 }
 		msgsused.lastrcvdCableAngle.flag += 1;
 		msgrcvlist |= RCV_CANID_CABLE_ANGLE;
 		break;
 	case CANID_MOTOR_SPEED:		// 0x25000000	 296 
 		msgsused.lastrcvdMotorSpeed.can = *pcan;
-		measurements.calibMotorSpeed = (float)pcan->cd.us[0] * scaleoffset.motorSpeedScale;
-		measurements.calibCableSpeed = (float) (2 * 3.14159 * scaleoffset.drumRadius * measurements.calibMotorSpeed / scaleoffset.motorToDrum);
+		measurements.lastMotorSpeed = (float)pcan->cd.us[0] * scaleoffset.motorSpeedScale;
+		measurements.lastCableSpeed = (float) (2 * 3.14159 * scaleoffset.drumRadius * measurements.lastMotorSpeed / scaleoffset.motorToDrum);
 		msgsused.lastrcvdMotorSpeed.flag += 1;
 		msgrcvlist |= RCV_CANID_MOTOR;
 		break;
@@ -345,7 +342,6 @@ void mc_state_msg_select(struct CANRCVBUF* pcan)
 		break;
 	}
 	return;
-
 }
 
 /* --------------------------------------------------------------------------------------
@@ -353,7 +349,7 @@ void mc_debug_print(void);
 ----------------------------------------------------------------------------------------- */
 void mc_debug_print(void)
 {
-	xprintf(UXPRT,"Going to state: %d\n\r", statestuff.state);
+	xprintf(UXPRT,"Going to state: %d\n\r", statevar.state);
 	return;
 }
 
@@ -364,7 +360,6 @@ void mc_debug_print(void)
  * ************************************************************************************** */
 void stateMachine(struct ETMCVAR* petmcvar)
 { 
-
 	struct CANRCVBUF can;
 
 	if (petmcvar->timeFlag > 0)
@@ -373,182 +368,171 @@ void stateMachine(struct ETMCVAR* petmcvar)
 		msgrcvlist = 0;	// Show that no needed msgs have been received
 	}
 
-                //  next Time message time                   
-                simulationvar.nextStepTime += statevar.STEPTIMEMILLIS;
+    //  next Time message time                   
+    //  simulationvar.nextStepTime += statevar.STEPTIMEMILLIS;
 
-                //  read messages until tension and motor messages are received
-                //  note: if there were other messages after the last tension 
-                //  and motor messages (e.g., cable angle, they will be read 
-                //  after the next time message.  This will be remidied by 
-                //  threading the read operations in the future
-                // System.out.println("System Time before reads (ms): "
-                //         + (long) System.currentTimeMillis());
+    switch (statevar.state)
+    {
+        case 0: // prep                        
+            //  This will be replaced with detection of pushing the ARM button
+            if (calib_control_lever_get() < (float) 0.05)
+            { 
+                statevar.state = 1; // going to armed state
+                // setStateled(1);	// ??? LED
+                sendStateMessage(1);
+                mc_debug_print();
+            }
+            break;
+        case 1: // armed
+            
+            if ((statevar.parametersRequestedFlag == 0) 
+                    && (calib_control_lever_get() > (float) 0.95))
+            {
+                // request launch parameters
+            	can.id = CANID_PARAM_REQUEST;
+            	can.dlc = 0;
+            	msg_out_mc(&can);
+                statevar.parametersRequestedFlag = 1;
+            }
+            // when we get the response, start the simulation
+            if ((msgrcvlist & CANID_LAUNCH_PARAM) != 0 )
+            {
+                simulationvar.simulationStartTime = (double) DTWTIME;
+                
+                statevar.state = 2;
+                // // setStateled(2); 	// LED ???
+                statevar.startProfileTics = simulationvar.elapsedTics;
+                sendStateMessage(2);
+                mc_debug_print();
+            }
+            break;
+        case 2: // profile 1
+            if ((simulationvar.elapsedTics - statevar.startProfileTics) 
+                >= (statevar.SOFT_START_TIME * statevar.TICSPERSECOND))
+            {
+                statevar.state = 3;
+                statevar.peakCableSpeed = measurements.lastCableSpeed;
+                // setStateled(3);
+                mc_debug_print();
+            }
+            break;
+        case 3: // profile 2
+            statevar.peakCableSpeed = measurements.lastCableSpeed > statevar.peakCableSpeed
+                    ? measurements.lastCableSpeed : statevar.peakCableSpeed;
+            if (measurements.lastCableSpeed < (statevar.peakCableSpeed * statevar.PEAK_CABLE_SPEED_DROP))
+            {
+                statevar.state = 4;
+                statevar.startRampTics = simulationvar.elapsedTics;
+                statevar.startRampTension = measurements.lastTension;
+                sendStateMessage(4);
+                // setStateled(4);
+                mc_debug_print();
+            }
+            break;
+        case 4: // ramp
+            if (simulationvar.elapsedTics - statevar.startRampTics > statevar.RAMP_TIME * statevar.TICSPERSECOND)
+            {
+                statevar.state = 5;
+                // setStateled(5);
+                sendStateMessage(5);
+                statevar.minCableSpeed = measurements.lastCableSpeed;
+                mc_debug_print();
+                statevar.taperFlag = 0;
+            }
+            break;
+        case 5: // constant
+            xprintf(UXPRT,"%6d\n\r",measurements.lastCableSpeed);
+            if (measurements.lastCableSpeed < statevar.minCableSpeed)
+            {
+                statevar.minCableSpeed = measurements.lastCableSpeed;
+            }
+            if (measurements.lastCableSpeed > statevar.minCableSpeed + statevar.RELEASEDELTA)
+            {
+                statevar.state = 6;
+                // setStateled(6);
+                sendStateMessage(6);
+                mc_debug_print();
+            }
+            break;
+        case 6: // recovery
+             // xprintf(UXPRT,"%6d\n\r",measurements.lastCableSpeed);
+            if (measurements.lastCableSpeed < statevar.ZERO_CABLE_SPEED_TOLERANCE)
+            {
+                statevar.state = 0;
+                // setStateled(0);
+                sendStateMessage(0);
+                mc_debug_print();
+                statevar.launchResetFlag = 1;                            
+            }
+            break;
+    }   // end of switch (statevar.state)
+    
+    //  Template for Desired Tension and Control Law     
+    if (msgrcvlist & (RCV_CANID_TENSION | RCV_CANID_MOTOR))   
+    {
+        switch (statevar.state)
+        {
+            case 0: // prep
+                statevar.setptTension = 0;
+                break;
 
-// ????	if ((msgrcvlist & RCV_ALLNEEDEDMSGS) == RCV_ALLNEEDEDMSGS )
+            case 1: // armed
+                statevar.setptTension = 0;
+                break;
+            case 2: // profile 1
+                statevar.setptTension = (float) (statevar.GROUND_TENSION_FACTOR * statevar.GLIDER_WEIGHT * 0.5  * (1 - cosf(statevar.K1 * (simulationvar.elapsedTics - statevar.startProfileTics))));
+                break;
 
-
-                switch (statestuff.state)
+            case 3: // profile 2
+                // System.out.println(measurements.lastCableSpeed +  statevar.PROFILE_TRIGGER_CABLE_SPEED);
+                if (measurements.lastCableSpeed < statevar.PROFILE_TRIGGER_CABLE_SPEED)
                 {
-                    case 0: // prep                        
-			if ( calib_control_lever_get() < (float) 0.1 )
-                        { 
-                            statestuff.state = 1; // going to armed state
-                        //    // setStateled(1);	// ??? LED
-                            sendStateMessage(1);
-			    mc_debug_print();
-                        }
-                        break;
-                    case 1: // armed
-                        
-                        if ((statestuff.parametersRequestedFlag == 0) 
-                                && (calib_control_lever_get() > (float) 0.9))
-                        {
-                            // request launch parameters
-				can.id = CANID_PARAM_REQUEST;
-				can.dlc = 0;
-				msg_out_mc(&can);
-                            	statestuff.parametersRequestedFlag = 1;
-                        }
-                        // when we get the response, start the simulation
-                        if ((msgrcvlist & CANID_LAUNCH_PARAM) != 0 )
-                        {
-                            simulationvar.simulationStartTime = (double) DTWTIME;
-                            
-                            statestuff.state = 2;
-                            // // setStateled(2); 	// LED ???
-                            statestuff.startProfileTics = simulationvar.elapsedTics;
-                            sendStateMessage(2);
-                            mc_debug_print();
-                        }
-                        break;
-                    case 2: // profile 1
-                        if (   (simulationvar.elapsedTics - statestuff.startProfileTics) >=
-                               (statevar.SOFT_START_TIME * statevar.TICSPERSECOND) )
-                        {
-                            statestuff.state = 3;
-                            statestuff.peakCableSpeed = measurements.calibCableSpeed;
-                            // setStateled(3);
-                            mc_debug_print();
-                        }
-                        break;
-                    case 3: // profile 2
-
-                        statestuff.peakCableSpeed = measurements.calibCableSpeed > statestuff.peakCableSpeed
-                                ? measurements.calibCableSpeed : statestuff.peakCableSpeed;
-                        //if (measurements.calibCableSpeed > statestuff.peakCableSpeed) {
-                        //    statestuff.peakCableSpeed = measurements.calibCableSpeed;
-                        //}
-
-                        if (measurements.calibCableSpeed < (statestuff.peakCableSpeed * statevar.PEAK_CABLE_SPEED_DROP))
-                        {
-                            statestuff.state = 4;
-                            statestuff.startRampTics = simulationvar.elapsedTics;
-                            statestuff.startRampTension = measurements.calibTension;
-                            sendStateMessage(4);
-                            // setStateled(4);
-                            mc_debug_print();
-                        }
-                        break;
-                    case 4: // ramp
-                        if (simulationvar.elapsedTics - statestuff.startRampTics > statevar.RAMP_TIME * statevar.TICSPERSECOND)
-                        {
-                            statestuff.state = 5;
-                            // setStateled(5);
-                            sendStateMessage(5);
-                            statestuff.minCableSpeed = measurements.calibCableSpeed;
-                            mc_debug_print();
-                            statestuff.taperFlag = 0;
-                        }
-                        break;
-                    case 5: // constant
-                        xprintf(UXPRT,"%6d\n\r",measurements.calibCableSpeed);
-                        if (measurements.calibCableSpeed < statestuff.minCableSpeed)
-                        {
-                            statestuff.minCableSpeed = measurements.calibCableSpeed;
-                        }
-                        if (measurements.calibCableSpeed > statestuff.minCableSpeed + statevar.RELEASEDELTA)
-                        {
-                            statestuff.state = 6;
-                            // setStateled(6);
-                            sendStateMessage(6);
-                            mc_debug_print();
-                        }
-                        break;
-                    case 6: // recovery
-			xprintf(UXPRT,"%6d\n\r",measurements.calibCableSpeed);
-                        if (measurements.calibCableSpeed < statevar.ZERO_CABLE_SPEED_TOLERANCE)
-                        {
-                            statestuff.state = 0;
-                            // setStateled(0);
-                            sendStateMessage(0);
-                            mc_debug_print();
-                            statestuff.launchResetFlag = 1;                            
-                        }
-                        break;
-                }
-                //  Template for Desired Tension and Control Law        
-                switch (statestuff.state)
+                    statevar.setptTension = statevar.GROUND_TENSION_FACTOR * statevar.GLIDER_WEIGHT;
+                    xprintf(UXPRT,"%6d\n\r",statevar.setptTension);	//  System.out.println(tension);
+                } 
+	             else
                 {
-                    case 0: // prep
-                        statestuff.setptTension = 0;
-                        break;
-
-                    case 1: // armed
-                        statestuff.setptTension = 0;
-                        break;
-                    case 2: // profile 1
-                        statestuff.setptTension = (float) (statevar.GROUND_TENSION_FACTOR * statevar.GLIDER_WEIGHT * 0.5  * (1 - cosf(statevar.K1 * (simulationvar.elapsedTics - statestuff.startProfileTics))));
-                        break;
-
-                    case 3: // profile 2
-                        // System.out.println(measurements.calibCableSpeed +  statevar.PROFILE_TRIGGER_CABLE_SPEED);
-                        if (measurements.calibCableSpeed < statevar.PROFILE_TRIGGER_CABLE_SPEED)
-                        {
-                            statestuff.setptTension = statevar.GROUND_TENSION_FACTOR * statevar.GLIDER_WEIGHT;
-                            xprintf(UXPRT,"%6d\n\r",statestuff.setptTension);	//  System.out.println(tension);
-                        } 
-			else
-                        {
-                            statestuff.setptTension = (float) (statevar.GROUND_TENSION_FACTOR * statevar.GLIDER_WEIGHT * cosf(statevar.K2 * (measurements.calibCableSpeed - statevar.PROFILE_TRIGGER_CABLE_SPEED)));
-                            xprintf(UXPRT,"%6d\n\r",statestuff.setptTension);	// System.out.println(tension);
-                        }
-                        break;
-                    case 4: // ramp
-                        statestuff.setptTension = (float) ((statestuff.startRampTension
-                                + (statevar.CLIMB_TENSION_FACTOR * statevar.GLIDER_WEIGHT
-                                - statestuff.startRampTension)
-                                * sinf(statevar.K3 * (simulationvar.elapsedTics - statestuff.startRampTics))));
-                        xprintf(UXPRT,"%6d\n\r",statestuff.setptTension);	//  System.out.println(tension);
-                        break;
-                    case 5: // constant
-                        statestuff.setptTension = (float) (statevar.CLIMB_TENSION_FACTOR * statevar.GLIDER_WEIGHT);
-                        if (statestuff.taperFlag == 1)
-                        {
-                            statestuff.setptTension *= 0.4 + 0.6 * 0.5
-                                    * (1 + cosf(statevar.K4 * (simulationvar.elapsedTics - statestuff.taperTics)));
-                        }
-                        break;
-                    case 6: // recovery
-                        statestuff.setptTension = statevar.MAX_PARACHUTE_TENSION;
-                        if (measurements.calibCableSpeed > statevar.PROFILE_TRIGGER_CABLE_SPEED)
-                        {
-                            statestuff.setptTension *= cosf(statevar.K5 * (measurements.calibCableSpeed - statevar.PARACHUTE_TAPER_SPEED));
-                            xprintf(UXPRT,"%6d\n\r",statestuff.setptTension);	// System.out.println(tension);
-                        }
-                        break;
-                    
+                    statevar.setptTension = (float) (statevar.GROUND_TENSION_FACTOR * statevar.GLIDER_WEIGHT * cosf(statevar.K2 * (measurements.lastCableSpeed - statevar.PROFILE_TRIGGER_CABLE_SPEED)));
+                    xprintf(UXPRT,"%6d\n\r",statevar.setptTension);	// System.out.println(tension);
                 }
-                statestuff.setptTension *= (float)calib_control_lever_get() / 4095.0 ; // scale by slider 
+                break;
+            case 4: // ramp
+                statevar.setptTension = (float) ((statevar.startRampTension
+                        + (statevar.CLIMB_TENSION_FACTOR * statevar.GLIDER_WEIGHT
+                        - statevar.startRampTension)
+                        * sinf(statevar.K3 * (simulationvar.elapsedTics - statevar.startRampTics))));
+                xprintf(UXPRT,"%6d\n\r",statevar.setptTension);	//  System.out.println(tension);
+                break;
+            case 5: // constant
+                statevar.setptTension = (float) (statevar.CLIMB_TENSION_FACTOR * statevar.GLIDER_WEIGHT);
+                if (statevar.taperFlag == 1)
+                {
+                    statevar.setptTension *= 0.4 + 0.6 * 0.5
+                            * (1 + cosf(statevar.K4 * (simulationvar.elapsedTics - statevar.taperTics)));
+                }
+                break;
+            case 6: // recovery
+                statevar.setptTension = statevar.MAX_PARACHUTE_TENSION;
+                if (measurements.lastCableSpeed > statevar.PROFILE_TRIGGER_CABLE_SPEED)
+                {
+                    statevar.setptTension *= cosf(statevar.K5 * (measurements.lastCableSpeed - statevar.PARACHUTE_TAPER_SPEED));
+                    xprintf(UXPRT,"%6d\n\r",statevar.setptTension);	// System.out.println(tension);
+                }
+                break;            
+        }
+        
+        statevar.setptTension *= (float) calib_control_lever_get(); // scale by slider 
 
-               //  filter the torque with about 1 Hz bandwidth
-                statestuff.setptTorque = (statestuff.setptTension * statevar.TENSION_TO_TORQUE); 
-                statestuff.filt_torque += ((statestuff.setptTorque - statestuff.filt_torque) / 8);
+        //  filter the torque with about 1 Hz bandwidth
+        statevar.setptTorque = (statevar.setptTension * statevar.TENSION_TO_TORQUE); 
+        statevar.filt_torque += ((statevar.setptTorque - statevar.filt_torque) / 8);
 
-		// torqueMessage.set_short((short) (statestuff.filt_torque / scaleoffset.torqueScale), 0); // torque
-         	can.id = CANID_TORQUE;
-		can.dlc = 2;
-		can.cd.us[0] = (short)(statestuff.filt_torque / scaleoffset.torqueScale);
-		msg_out_mc(&can);
+        // torqueMessage.set_short((short) (statevar.filt_torque / scaleoffset.torqueScale), 0); // torque
+     	can.id = CANID_TORQUE;
+        can.dlc = 2;
+        can.cd.us[0] = (short) (statevar.filt_torque / scaleoffset.torqueScale);
+        msg_out_mc(&can);
+    }
             
 }
 
@@ -560,15 +544,19 @@ void stateMachine(struct ETMCVAR* petmcvar)
 void mc_state_lcd_poll(struct ETMCVAR* petmcvar)
 {
 	char lcdLine[LCDLINESIZE + 1];
-	if (((int)(DTWTIME - t_lcd)) > 0) {
+	if (((int) (DTWTIME - t_lcd)) > 0) 
+    {
 		t_lcd += LCDPACE;
-		snprintf(lcdLine, 20, "State %4d", statestuff.state); 		lcd_printToLine(UARTLCD, 0, lcdLine);
-xprintf(UXPRT,"%s ",lcdLine);
-statestuff.setptTorque = calib_control_lever_get();
-		snprintf(lcdLine, 20, "Torq: %10.3f", statestuff.setptTorque);	lcd_printToLine(UARTLCD, 1, lcdLine);
-xprintf(UXPRT,"%s ",lcdLine);
-		snprintf(lcdLine, 20, "Time: %d", petmcvar->unixtime);		lcd_printToLine(UARTLCD, 2, lcdLine);
-xprintf(UXPRT,"%s \n\r",lcdLine);
+		snprintf(lcdLine, 20, "State %4d", statevar.state); 
+        lcd_printToLine(UARTLCD, 0, lcdLine);
+        xprintf(UXPRT,"%s ",lcdLine);
+        statevar.setptTorque = last_control_lever_get();
+		snprintf(lcdLine, 20, "Commanded Tension: %10.1f", statevar.setptTension);	
+        lcd_printToLine(UARTLCD, 1, lcdLine);
+        xprintf(UXPRT,"%s ",lcdLine);
+		snprintf(lcdLine, 20, "Time: %d", petmcvar->unixtime);		
+        lcd_printToLine(UARTLCD, 2, lcdLine);
+        xprintf(UXPRT,"%s \n\r",lcdLine);
 	}
 	return;
 }
