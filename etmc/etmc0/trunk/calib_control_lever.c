@@ -33,15 +33,14 @@ extern struct ETMCVAR etmcvar;
 
 //	code for calibrating scale and offset for the control lever
 //	make function later
-#define FSCL	((1 << 12) - 1)	// full scale control lever (CL) output
+//#define FSCL	((1 << 12) - 1)	// full scale control lever (CL) output
 #define CLREST (1 << 11) 	// SPI bit position for CL rest position switch
 #define CLFS  (1 << 8) 		// SPI bit position for CL full scale position
 #define CL_ADC_CHANNEL 	0
-#define FLASHCOUNT (sysclk_freq/2);	// Orange LED flash increment
+#define FLASHCOUNT (sysclk_freq/8);	// Orange LED flash increment
 
-static int cal_cl;			// calibrated control lever output
 static int cloffset = 0, clmax = 0;	// Min and maximum values observed for control lever
-static int clscale = 0;		// scale value for generating calibrated output
+static float fpclscale;		//	CL conversion scale factor 
 
 void calib_control_lever(void)
 {
@@ -91,29 +90,33 @@ void calib_control_lever(void)
 					}
 					case 2:	//	waiting for full scale position first time
 					{
-						if (!(sw & CLFS)) clcalstate = 3;					
-						break;
+						if (sw & CLFS) break ;
+						clcalstate = 3;
+						sprintf(vv, "twice: 0.5");
+						lcd_printToLine(UARTLCD, 1, vv);
+						break;						
 					}
 					case 3:	//	wating for return to rest first time
 					{
 						if (sw & CLREST) break; 
-							{
-								clcalstate = 4;
-								sprintf(vv, "twice: 1");
-								lcd_printToLine(UARTLCD, 1, vv);
-								single_beep();
-								break;
-							}
+						clcalstate = 4;
+						sprintf(vv, "twice: 1  ");
+						lcd_printToLine(UARTLCD, 1, vv);
+						single_beep();
+						break;
 					}
 					case 4:	//	waiting for full scale second time
 					{
-						if (!(sw & CLFS)) clcalstate = 5;					
-						break;
+						if (sw & CLFS) break;
+						clcalstate = 5;
+						sprintf(vv, "twice: 1.5");
+						lcd_printToLine(UARTLCD, 1, vv);
+						break;					
 					}
 					case 5:	//	waiting for return to rest second time
 					{
 						if (sw & CLREST) break;
-						clscale = (FSCL  << 16) / (clmax - cloffset);
+						fpclscale = 1.0 / (clmax - cloffset);
 						lcd_clear(UARTLCD);
 						single_beep();
 						clcalstate = 6; 
@@ -125,7 +128,7 @@ void calib_control_lever(void)
 		}
 	}	
 	GPIO_BSRR(GPIOA) = 1 << (8 + 16);	// Turn off beeper
-	xprintf(UXPRT, "  cloffset: %10d clmax: %10d clscale: %10d \n\r", cloffset, clmax, clscale);
+	xprintf(UXPRT, "  cloffset: %10d clmax: %10d \n\r", cloffset, clmax);
 	xprintf 	(UXPRT, "   Control Lever Initial Calibration Complete\n\r");
 	return;
 }
@@ -134,9 +137,15 @@ void calib_control_lever(void)
  * @brief	:
  * @return	: Calibrated Control lever: 0 - 4095 (but could be slightly negative) -> 0 - 100%
  ************************************************************************************************************* */
-int calib_control_lever_get(void)
+float calib_control_lever_get(void)
 {
-	return cal_cl;
+	float x;
+	x = (adc_last_filtered[CL_ADC_CHANNEL] - cloffset) * fpclscale;
+	/* for now do not limit
+	x = x > 1.0 ? 1.0 : x;
+	x = x < 0.0 ? 0.0 : x;
+	*/
+	return x;
 }
 
 

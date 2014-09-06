@@ -20,7 +20,7 @@
 
 // lcd
 u32 t_lcd;
-#define LCDPACE (sysclk_freq/2) // LCD pacing increment
+#define LCDPACE (sysclk_freq/8) // LCD pacing increment
 
 struct MCSTATEVAR
 {
@@ -564,8 +564,8 @@ void mc_state_lcd_poll(struct ETMCVAR* petmcvar)
 		t_lcd += LCDPACE;
 		snprintf(lcdLine, 20, "State %4d", statestuff.state); 		lcd_printToLine(UARTLCD, 0, lcdLine);
 xprintf(UXPRT,"%s ",lcdLine);
-//statestuff.setptTorque = 987.34;
-		snprintf(lcdLine, 20, "Torq: %10.2f", statestuff.setptTorque);	lcd_printToLine(UARTLCD, 1, lcdLine);
+statestuff.setptTorque = calib_control_lever_get();
+		snprintf(lcdLine, 20, "Torq: %10.3f", statestuff.setptTorque);	lcd_printToLine(UARTLCD, 1, lcdLine);
 xprintf(UXPRT,"%s ",lcdLine);
 		snprintf(lcdLine, 20, "Time: %d", petmcvar->unixtime);		lcd_printToLine(UARTLCD, 2, lcdLine);
 xprintf(UXPRT,"%s \n\r",lcdLine);

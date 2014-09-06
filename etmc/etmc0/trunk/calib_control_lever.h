@@ -17,9 +17,9 @@
 void calib_control_lever(void);
 /* @brief	:Setup & initialization functions 
  ************************************************************************************************************* */
-int calib_control_lever_get(void);
+float calib_control_lever_get(void);
 /* @brief	:
- * @return	: Calibrated Control lever: 0 - 4095 (but could be slightly negative) -> 0 - 100%
+ * @return	: Calibrated control lever output between 0.0 and 1.0
  ************************************************************************************************************* */
 
 #endif 
