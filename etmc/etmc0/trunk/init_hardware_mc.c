@@ -115,7 +115,6 @@ void init_hardware_mc (void)
 		bsp_uart_int_init_number(UARTGATE, 230400, 256, 256, 0x40);	// UART used for the Gateway
 		bsp_uart_int_init_number(UXPRT,    115200, 256, 256, 0xB0);	// UART used for debugging		
 		
-		delay_tenth_sec(5);		//	wait a half second for LCD to finish splash screen
 		lcd_init(UARTLCD); 						// UART used for the LCD screen
 										
 	/* Setup STDOUT, STDIN (a shameful sequence until we sort out 'newlib' and 'fopen'.)  The following 'open' sets up 

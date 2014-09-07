@@ -8,11 +8,29 @@
 
 #include "bsp_uart.h"
 #include "4x20lcd.h"
+#include "../libmiscstm32f4/clockspecifysetup.h"
 #include <string.h>
+
+
+static void delay_tenth_sec(unsigned int t)
+{
+	int i;
+	unsigned int tp = sysclk_freq/10;	// Increment for 1/10th sec
+	volatile unsigned int t0 = DTWTIME + tp;
+	for (i = 0; i < t; i++)
+	{
+		while (((int)(DTWTIME - t0)) < 0); // Has the time expired?
+		t0 += tp;
+	}
+	return;
+}
 
 void lcd_init(int uartnumber) {
 	// 9600 baud
 	bsp_uart_int_init_number(uartnumber, 9600, 4, 128, 0xC0);
+
+	delay_tenth_sec(5);		//	wait a half second for LCD to finish splash screen
+
 
 	lcd_off(uartnumber);
 	lcd_on(uartnumber);
