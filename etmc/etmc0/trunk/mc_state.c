@@ -104,7 +104,6 @@ struct MCMEASUREMENTS
     float lastCableAngle;
 };
 
-
 struct MCSTATEVAR
 {
     // state machine stuff
@@ -216,7 +215,7 @@ void mc_state_init(struct ETMCVAR* petmcvar)
     stateparam.STEPTIME = ((float) 1.0) / stateparam.TICSPERSECOND;
     stateparam.REALTIMEFACTOR = ((float) 1.0);
 
-    stateparam.STEPTIMEMILLIS = 1000 * stateparam.SIMULATIONSTEPTIME / stateparam.REALTIMEFACTOR;
+    stateparam.STEPTIMEMILLIS = 1000 * stateparam.STEPTIME / stateparam.REALTIMEFACTOR;
     stateparam.GRAVITY_ACCELERATION = (float) 9.81;
     stateparam.ZERO_CABLE_SPEED_TOLERANCE = (float) 0.1;
     //  DRIVE PARAMETERS
@@ -274,8 +273,8 @@ void mc_state_init(struct ETMCVAR* petmcvar)
         simulationvar.elapsedTics = -1;
 //        simulationvar.startTime = (passed from etmc0.c to us)
         simulationvar.timeMillis = 0;
-        simulationvar.nextStepTime = 0;
-        //simulationvar.remainingTimeMillis = 0;
+//        simulationvar.nextStepTime = 0;
+//        //simulationvar.remainingTimeMillis = 0;
 
 	mc_state_launch_init();
 	
@@ -411,7 +410,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
                 >= (stateparam.SOFT_START_TIME * stateparam.TICSPERSECOND))
             {
                 statevar.state = 3;
-                stateparam.peakCableSpeed = measurements.lastCableSpeed;
+                statevar.peakCableSpeed = measurements.lastCableSpeed;
                 // setStateled(3);
                 mc_debug_print();
             }
@@ -441,7 +440,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
             }
             break;
         case 5: // constant
-            xprintf(UXPRT,"%6d\n\r",measurements.lastCableSpeed);
+            xprintf(UXPRT,"%6d\n\r", (double) measurements.lastCableSpeed);
             if (measurements.lastCableSpeed < statevar.minCableSpeed)
             {
                 statevar.minCableSpeed = measurements.lastCableSpeed;
@@ -488,12 +487,12 @@ void stateMachine(struct ETMCVAR* petmcvar)
                 if (measurements.lastCableSpeed < stateparam.PROFILE_TRIGGER_CABLE_SPEED)
                 {
                     statevar.setptTension = stateparam.GROUND_TENSION_FACTOR * stateparam.GLIDER_WEIGHT;
-                    xprintf(UXPRT,"%6d\n\r",statevar.setptTension);	//  System.out.println(tension);
+                    xprintf(UXPRT,"%6d\n\r", (double) statevar.setptTension);	//  System.out.println(tension);
                 } 
 	             else
                 {
                     statevar.setptTension = (float) (stateparam.GROUND_TENSION_FACTOR * stateparam.GLIDER_WEIGHT * cosf(stateparam.K2 * (measurements.lastCableSpeed - stateparam.PROFILE_TRIGGER_CABLE_SPEED)));
-                    xprintf(UXPRT,"%6d\n\r",statevar.setptTension);	// System.out.println(tension);
+                    xprintf(UXPRT,"%6d\n\r", (double) statevar.setptTension);	// System.out.println(tension);
                 }
                 break;
             case 4: // ramp
@@ -501,7 +500,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
                         + (stateparam.CLIMB_TENSION_FACTOR * stateparam.GLIDER_WEIGHT
                         - statevar.startRampTension)
                         * sinf(stateparam.K3 * (simulationvar.elapsedTics - statevar.startRampTics))));
-                xprintf(UXPRT,"%6d\n\r",statevar.setptTension);	//  System.out.println(tension);
+                xprintf(UXPRT,"%6d\n\r", (double) statevar.setptTension);	//  System.out.println(tension);
                 break;
             case 5: // constant
                 statevar.setptTension = (float) (stateparam.CLIMB_TENSION_FACTOR * stateparam.GLIDER_WEIGHT);
@@ -516,24 +515,23 @@ void stateMachine(struct ETMCVAR* petmcvar)
                 if (measurements.lastCableSpeed > stateparam.PROFILE_TRIGGER_CABLE_SPEED)
                 {
                     statevar.setptTension *= cosf(stateparam.K5 * (measurements.lastCableSpeed - stateparam.PARACHUTE_TAPER_SPEED));
-                    xprintf(UXPRT,"%6d\n\r",statevar.setptTension);	// System.out.println(tension);
+                    xprintf(UXPRT,"%6d\n\r",(double) statevar.setptTension);	// System.out.println(tension);
                 }
                 break;            
         }
         
-        statevar.setptTension *= (float) calib_control_lever_get(); // scale by slider 
+        statevar.setptTension *= (float) calib_control_lever_get(); 
 
         //  filter the torque with about 1 Hz bandwidth
-        statevar.setptTorque = (statevar.setptTension * stateparam.TENSION_TO_TORQUE); 
-        statevar.filt_torque += ((statevar.setptTorque - statevar.filt_torque) * ((float) 1.0 / 8);
+        statevar.setptTorque = statevar.setptTension * stateparam.TENSION_TO_TORQUE; 
+        statevar.filt_torque += (statevar.setptTorque - statevar.filt_torque) * ((float) 1.0 / 8);
 
         // torqueMessage.set_short((short) (statevar.filt_torque / scaleoffset.torqueScale), 0); // torque
      	can.id = CANID_TORQUE;
         can.dlc = 2;
         can.cd.us[0] = (short) (statevar.filt_torque / scaleoffset.torqueScale);
         msg_out_mc(&can);
-    }
-            
+    }            
 }
 
 /* **************************************************************************************
@@ -550,13 +548,15 @@ void mc_state_lcd_poll(struct ETMCVAR* petmcvar)
 		snprintf(lcdLine, 20, "State %4d", statevar.state); 
         lcd_printToLine(UARTLCD, 0, lcdLine);
         xprintf(UXPRT,"%s ",lcdLine);
-        statevar.setptTorque = last_control_lever_get();
-		snprintf(lcdLine, 20, "Commanded Tension: %10.1f", statevar.setptTension);	
+        snprintf(lcdLine, 20, "Tension: %10.1f", (double) statevar.setptTension);	
         lcd_printToLine(UARTLCD, 1, lcdLine);
         xprintf(UXPRT,"%s ",lcdLine);
-		snprintf(lcdLine, 20, "Time: %d", petmcvar->unixtime);		
+        snprintf(lcdLine, 20, "Time: %d", petmcvar->unixtime);      
         lcd_printToLine(UARTLCD, 2, lcdLine);
         xprintf(UXPRT,"%s \n\r",lcdLine);
+		/*snprintf(lcdLine, 20, "Control Lever:  %5.3f", (double) calib_control_lever_get());		
+        lcd_printToLine(UARTLCD, 3, lcdLine);
+        xprintf(UXPRT,"%s \n\r",lcdLine);*/
 	}
 	return;
 }

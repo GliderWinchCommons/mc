@@ -9,13 +9,10 @@
 #include "bsp_uart.h"
 #include "4x20lcd.h"
 #include <string.h>
-#include "beep_n_lcd.h" // Time delay 
 
 void lcd_init(int uartnumber) {
 	// 9600 baud
 	bsp_uart_int_init_number(uartnumber, 9600, 4, 128, 0xC0);
-
-	delay_tenth(5);
 
 	lcd_off(uartnumber);
 	lcd_on(uartnumber);
