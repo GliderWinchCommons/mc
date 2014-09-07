@@ -22,11 +22,11 @@
 u32 t_lcd;
 #define LCDPACE (sysclk_freq/8) // LCD pacing increment
 
-struct MCSTATEVAR
+struct MCSTATEPARAM
 {
-
+    //  these need to be segregated into launch parameters and winch parameters
     float TICSPERSECOND;
-    float SIMULATIONSTEPTIME;
+    float STEPTIME;
     float REALTIMEFACTOR;
 
     float STEPTIMEMILLIS;
@@ -74,57 +74,56 @@ struct MCSTATEVAR
 };
 
 struct MCSCALEOFFSET
-{
-        float torqueScale;
-        float tensionScale;
-        float tensionOffset;
-        float cableAngleScale;
-        float cableAngleOffset;
-        float drumRadius;
-        float motorToDrum;
-        float motorSpeedScale;
-
+{   //  these are more associated with CANbus payload definitions
+    float torqueScale;
+    float tensionScale;
+    float tensionOffset;
+    float cableAngleScale;
+    float cableAngleOffset;
+    float drumRadius;
+    float motorToDrum;
+    float motorSpeedScale;
 };
 
 struct MCSIMULATIONVAR
-{
-        unsigned char fracTime;
-	unsigned int simulationStartTime;
-        int elapsedTics;
-        double simulationStrtTime;      // milliseconds since Unix Epoc
-        double timeMillis;
-        //float nextStepTime;
-        //double remainingTimeMillis;
+{   //  TimeMillis variables need to be just in seconds now tht we have good fp
+    unsigned char fracTime;
+	unsigned int startTime;
+    int elapsedTics;
+    double simulationStrtTime;      // milliseconds since Unix Epoc
+    double timeMillis;
+    //float nextStepTime;
+    //double remainingTimeMillis;
 };
 
 struct MCMEASUREMENTS
 {
-        float lastTension;
-        float lastMotorSpeed;
-        float lastCableSpeed;
-        float lastCableAngle;
+    float lastTension;
+    float lastMotorSpeed;
+    float lastCableSpeed;
+    float lastCableAngle;
 };
 
 
 struct MCSTATEVAR
 {
-       // state machine stuff
-        int state;
-        int speedMessageFlag;
-        int tensionMessageReceivedFlag;
-        int paramReceivedFlag;
-        int parametersRequestedFlag;
-        int launchResetFlag;
-        int startProfileTics;
-        int startRampTics;
-        float startRampTension;
-        float peakCableSpeed;
-        int taperFlag;
-        float taperTics;
-        float minCableSpeed;
+    // state machine stuff
+    int state;
+    int speedMessageFlag;
+    int tensionMessageReceivedFlag;
+    int paramReceivedFlag;
+    int parametersRequestedFlag;
+    int launchResetFlag;
+    int startProfileTics;
+    int startRampTics;
+    float startRampTension;
+    float peakCableSpeed;
+    int taperFlag;
+    float taperTics;
+    float minCableSpeed;
 	float setptTension;
 	float setptTorque;
-        float filt_torque;
+    float filt_torque;
 };
 
 struct MCRCVDCANMSG
@@ -144,7 +143,7 @@ struct MCMSGSUSED
 };
 
 
-static struct MCSTATEVAR statevar;
+static struct MCSTATEPARAM stateparam;
 static struct MCSCALEOFFSET scaleoffset;
 static struct MCSIMULATIONVAR simulationvar;
 static struct MCMEASUREMENTS measurements;
@@ -174,28 +173,28 @@ void mc_state_launch_init(void)
 	t_lcd        = DTWTIME + LCDPACE;
 
 // struct MCMEASUREMENTS
-        measurements.lastTension = 0;
-        measurements.lastMotorSpeed = 0;
-        measurements.lastCableSpeed = 0;
-        measurements.lastCableAngle = 0;
+    measurements.lastTension = 0;
+    measurements.lastMotorSpeed = 0;
+    measurements.lastCableSpeed = 0;
+    measurements.lastCableAngle = 0;
 
-// struct MCSTATESTUF
-        statevar.state = 0;
-        statevar.speedMessageFlag = 0;
-        statevar.tensionMessageReceivedFlag = 0;
-        statevar.paramReceivedFlag = 0;
-        statevar.parametersRequestedFlag = 0;
-        statevar.launchResetFlag = 1;
-        statevar.startProfileTics = 0;
-        statevar.startRampTics = 0;
-        statevar.startRampTension = 0;
-        statevar.peakCableSpeed = 0;
-        statevar.taperFlag = 1;
-        statevar.taperTics = 0;
-        statevar.minCableSpeed = 0;
-        statevar.setptTension = 0;
-        statevar.setptTorque = 0;
-        statevar.filt_torque = 0;
+    // struct MCSTATESTUF
+    statevar.state = 0;
+    statevar.speedMessageFlag = 0;
+    statevar.tensionMessageReceivedFlag = 0;
+    statevar.paramReceivedFlag = 0;
+    statevar.parametersRequestedFlag = 0;
+    statevar.launchResetFlag = 1;
+    statevar.startProfileTics = 0;
+    statevar.startRampTics = 0;
+    statevar.startRampTension = 0;
+    statevar.peakCableSpeed = 0;
+    statevar.taperFlag = 1;
+    statevar.taperTics = 0;
+    statevar.minCableSpeed = 0;
+    statevar.setptTension = 0;
+    statevar.setptTorque = 0;
+    statevar.filt_torque = 0;
 
 // struct MCRCVDCANMSGS
 	mc_state_msgs_init(&msgsused);
@@ -210,54 +209,55 @@ void mc_state_launch_init(void)
  * ************************************************************************************** */
 void mc_state_init(struct ETMCVAR* petmcvar)
 {
-// struct MCSTATEVAR
+// struct MCSTATEPARAM
+    //  Wwy do these need to be reinitialized?
 
-    statevar.TICSPERSECOND = 64;
-    statevar.SIMULATIONSTEPTIME = ((float) 1.0) / statevar.TICSPERSECOND;
-    statevar.REALTIMEFACTOR = ((float) 1.0);
+    stateparam.TICSPERSECOND = 64;
+    stateparam.STEPTIME = ((float) 1.0) / stateparam.TICSPERSECOND;
+    stateparam.REALTIMEFACTOR = ((float) 1.0);
 
-    statevar.STEPTIMEMILLIS = 1000 * statevar.SIMULATIONSTEPTIME / statevar.REALTIMEFACTOR;
-    statevar.GRAVITY_ACCELERATION = (float) 9.81;
-    statevar.ZERO_CABLE_SPEED_TOLERANCE = (float) 0.1;
+    stateparam.STEPTIMEMILLIS = 1000 * stateparam.SIMULATIONSTEPTIME / stateparam.REALTIMEFACTOR;
+    stateparam.GRAVITY_ACCELERATION = (float) 9.81;
+    stateparam.ZERO_CABLE_SPEED_TOLERANCE = (float) 0.1;
     //  DRIVE PARAMETERS
-    statevar.TORQUE_TO_TENSION = 20;
-    statevar.TENSION_TO_TORQUE = 1 / statevar.TORQUE_TO_TENSION;
+    stateparam.TORQUE_TO_TENSION = 20;
+    stateparam.TENSION_TO_TORQUE = 1 / stateparam.TORQUE_TO_TENSION;
 
     // LAUNCH PARAMS
-    statevar.GROUND_TENSION_FACTOR = (float) 1.0;
-    statevar.CLIMB_TENSION_FACTOR = (float) 1.3;
+    stateparam.GROUND_TENSION_FACTOR = (float) 1.0;
+    stateparam.CLIMB_TENSION_FACTOR = (float) 1.3;
 
-    statevar.GLIDER_MASS = (float) 600;
-    statevar.GLIDER_WEIGHT = statevar.GLIDER_MASS * statevar.GRAVITY_ACCELERATION;
+    stateparam.GLIDER_MASS = (float) 600;
+    stateparam.GLIDER_WEIGHT = stateparam.GLIDER_MASS * stateparam.GRAVITY_ACCELERATION;
 
     //  for soft stat taper up
-    statevar.SOFT_START_TIME = (float) 1.0;
-    statevar.K1 = (float) PI / (statevar.SOFT_START_TIME * statevar.TICSPERSECOND);
+    stateparam.SOFT_START_TIME = (float) 1.0;
+    stateparam.K1 = (float) PI / (stateparam.SOFT_START_TIME * stateparam.TICSPERSECOND);
 
     //  for rotation taper down 
-    statevar.PROFILE_TRIGGER_CABLE_SPEED = (float) 20.578; // 40 knots
-    statevar.MAX_GROUND_CABLE_SPEED = (float) 35;
-    statevar.K2 = (float) (PI / (2 * statevar.MAX_GROUND_CABLE_SPEED - statevar.PROFILE_TRIGGER_CABLE_SPEED));
+    stateparam.PROFILE_TRIGGER_CABLE_SPEED = (float) 20.578; // 40 knots
+    stateparam.MAX_GROUND_CABLE_SPEED = (float) 35;
+    stateparam.K2 = (float) (PI / (2 * stateparam.MAX_GROUND_CABLE_SPEED - stateparam.PROFILE_TRIGGER_CABLE_SPEED));
 
     //  for transition to ramp
-    statevar.PEAK_CABLE_SPEED_DROP = (float) 0.97;
+    stateparam.PEAK_CABLE_SPEED_DROP = (float) 0.97;
 
     //  for ramp taper up 
-    statevar.RAMP_TIME = 6;
-    statevar.K3 = (float) (PI / (2 * statevar.RAMP_TIME * statevar.TICSPERSECOND));
+    stateparam.RAMP_TIME = 6;
+    stateparam.K3 = (float) (PI / (2 * stateparam.RAMP_TIME * stateparam.TICSPERSECOND));
 
 //  for end of climb taper down
-    statevar.TAPERANGLETRIG = (float) 50;  //  Angle to start taper
-    statevar.TAPERTIME = (float) 3;  //  End of climb taper time
-    statevar.K4 = (float) (PI / (2 * statevar.TAPERTIME * statevar.TICSPERSECOND));
+    stateparam.TAPERANGLETRIG = (float) 50;  //  Angle to start taper
+    stateparam.TAPERTIME = (float) 3;  //  End of climb taper time
+    stateparam.K4 = (float) (PI / (2 * stateparam.TAPERTIME * stateparam.TICSPERSECOND));
 
-    statevar.RELEASEDELTA = (float) 5;    //  for detection of release
+    stateparam.RELEASEDELTA = (float) 5;    //  for detection of release
 
 //    for parachute tension and taper
-    statevar.MAX_PARACHUTE_TENSION = (float) 3000;    //  newtons
-    statevar.PARACHUTE_TAPER_SPEED = (float) 25;      //  m/s
-    statevar.MAX_PARACHUTE_CABLE_SPEED = (float) 35;  //  m/s
-    statevar.K5 = (float) (PI / (2 * statevar.MAX_PARACHUTE_CABLE_SPEED - statevar.PARACHUTE_TAPER_SPEED));
+    stateparam.MAX_PARACHUTE_TENSION = (float) 3000;    //  newtons
+    stateparam.PARACHUTE_TAPER_SPEED = (float) 25;      //  m/s
+    stateparam.MAX_PARACHUTE_CABLE_SPEED = (float) 35;  //  m/s
+    stateparam.K5 = (float) (PI / (2 * stateparam.MAX_PARACHUTE_CABLE_SPEED - stateparam.PARACHUTE_TAPER_SPEED));
 
 // struct MCSCALEOFFSET
         scaleoffset.torqueScale = (float) (1.0 / 32.0);
@@ -272,7 +272,7 @@ void mc_state_init(struct ETMCVAR* petmcvar)
 // struct MCSIMULATIONVAR
         simulationvar.fracTime = 0;
         simulationvar.elapsedTics = -1;
-//        simulationvar.simulationStartTime = (passed from etmc0.c to us)
+//        simulationvar.startTime = (passed from etmc0.c to us)
         simulationvar.timeMillis = 0;
         simulationvar.nextStepTime = 0;
         //simulationvar.remainingTimeMillis = 0;
@@ -320,7 +320,7 @@ void mc_state_msg_select(struct CANRCVBUF* pcan)
 	case CANID_CABLE_ANGLE:	// 0x3A000000	 464 
 		msgsused.lastrcvdCableAngle.can = *pcan;
                 measurements.lastCableAngle = ((float)pcan->cd.uc[0] - scaleoffset.cableAngleOffset) * scaleoffset.cableAngleScale;
-                if (statevar.taperFlag == 0 && measurements.lastCableAngle > statevar.TAPERANGLETRIG)
+                if (statevar.taperFlag == 0 && measurements.lastCableAngle > stateparam.TAPERANGLETRIG)
                 {
                 	statevar.taperFlag = 1;
                 	statevar.taperTics = simulationvar.elapsedTics;
@@ -369,7 +369,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
 	}
 
     //  next Time message time                   
-    //  simulationvar.nextStepTime += statevar.STEPTIMEMILLIS;
+    //  simulationvar.nextStepTime += stateparam.STEPTIMEMILLIS;
 
     switch (statevar.state)
     {
@@ -397,7 +397,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
             // when we get the response, start the simulation
             if ((msgrcvlist & CANID_LAUNCH_PARAM) != 0 )
             {
-                simulationvar.simulationStartTime = (double) DTWTIME;
+                simulationvar.startTime = (double) DTWTIME;
                 
                 statevar.state = 2;
                 // // setStateled(2); 	// LED ???
@@ -408,10 +408,10 @@ void stateMachine(struct ETMCVAR* petmcvar)
             break;
         case 2: // profile 1
             if ((simulationvar.elapsedTics - statevar.startProfileTics) 
-                >= (statevar.SOFT_START_TIME * statevar.TICSPERSECOND))
+                >= (stateparam.SOFT_START_TIME * stateparam.TICSPERSECOND))
             {
                 statevar.state = 3;
-                statevar.peakCableSpeed = measurements.lastCableSpeed;
+                stateparam.peakCableSpeed = measurements.lastCableSpeed;
                 // setStateled(3);
                 mc_debug_print();
             }
@@ -419,7 +419,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
         case 3: // profile 2
             statevar.peakCableSpeed = measurements.lastCableSpeed > statevar.peakCableSpeed
                     ? measurements.lastCableSpeed : statevar.peakCableSpeed;
-            if (measurements.lastCableSpeed < (statevar.peakCableSpeed * statevar.PEAK_CABLE_SPEED_DROP))
+            if (measurements.lastCableSpeed < (statevar.peakCableSpeed * stateparam.PEAK_CABLE_SPEED_DROP))
             {
                 statevar.state = 4;
                 statevar.startRampTics = simulationvar.elapsedTics;
@@ -430,7 +430,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
             }
             break;
         case 4: // ramp
-            if (simulationvar.elapsedTics - statevar.startRampTics > statevar.RAMP_TIME * statevar.TICSPERSECOND)
+            if (simulationvar.elapsedTics - statevar.startRampTics > stateparam.RAMP_TIME * stateparam.TICSPERSECOND)
             {
                 statevar.state = 5;
                 // setStateled(5);
@@ -446,7 +446,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
             {
                 statevar.minCableSpeed = measurements.lastCableSpeed;
             }
-            if (measurements.lastCableSpeed > statevar.minCableSpeed + statevar.RELEASEDELTA)
+            if (measurements.lastCableSpeed > statevar.minCableSpeed + stateparam.RELEASEDELTA)
             {
                 statevar.state = 6;
                 // setStateled(6);
@@ -456,7 +456,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
             break;
         case 6: // recovery
              // xprintf(UXPRT,"%6d\n\r",measurements.lastCableSpeed);
-            if (measurements.lastCableSpeed < statevar.ZERO_CABLE_SPEED_TOLERANCE)
+            if (measurements.lastCableSpeed < stateparam.ZERO_CABLE_SPEED_TOLERANCE)
             {
                 statevar.state = 0;
                 // setStateled(0);
@@ -480,42 +480,42 @@ void stateMachine(struct ETMCVAR* petmcvar)
                 statevar.setptTension = 0;
                 break;
             case 2: // profile 1
-                statevar.setptTension = (float) (statevar.GROUND_TENSION_FACTOR * statevar.GLIDER_WEIGHT * 0.5  * (1 - cosf(statevar.K1 * (simulationvar.elapsedTics - statevar.startProfileTics))));
+                statevar.setptTension = (float) (stateparam.GROUND_TENSION_FACTOR * stateparam.GLIDER_WEIGHT * 0.5  * (1 - cosf(stateparam.K1 * (simulationvar.elapsedTics - statevar.startProfileTics))));
                 break;
 
             case 3: // profile 2
-                // System.out.println(measurements.lastCableSpeed +  statevar.PROFILE_TRIGGER_CABLE_SPEED);
-                if (measurements.lastCableSpeed < statevar.PROFILE_TRIGGER_CABLE_SPEED)
+                // System.out.println(measurements.lastCableSpeed +  stateparam.PROFILE_TRIGGER_CABLE_SPEED);
+                if (measurements.lastCableSpeed < stateparam.PROFILE_TRIGGER_CABLE_SPEED)
                 {
-                    statevar.setptTension = statevar.GROUND_TENSION_FACTOR * statevar.GLIDER_WEIGHT;
+                    statevar.setptTension = stateparam.GROUND_TENSION_FACTOR * stateparam.GLIDER_WEIGHT;
                     xprintf(UXPRT,"%6d\n\r",statevar.setptTension);	//  System.out.println(tension);
                 } 
 	             else
                 {
-                    statevar.setptTension = (float) (statevar.GROUND_TENSION_FACTOR * statevar.GLIDER_WEIGHT * cosf(statevar.K2 * (measurements.lastCableSpeed - statevar.PROFILE_TRIGGER_CABLE_SPEED)));
+                    statevar.setptTension = (float) (stateparam.GROUND_TENSION_FACTOR * stateparam.GLIDER_WEIGHT * cosf(stateparam.K2 * (measurements.lastCableSpeed - stateparam.PROFILE_TRIGGER_CABLE_SPEED)));
                     xprintf(UXPRT,"%6d\n\r",statevar.setptTension);	// System.out.println(tension);
                 }
                 break;
             case 4: // ramp
                 statevar.setptTension = (float) ((statevar.startRampTension
-                        + (statevar.CLIMB_TENSION_FACTOR * statevar.GLIDER_WEIGHT
+                        + (stateparam.CLIMB_TENSION_FACTOR * stateparam.GLIDER_WEIGHT
                         - statevar.startRampTension)
-                        * sinf(statevar.K3 * (simulationvar.elapsedTics - statevar.startRampTics))));
+                        * sinf(stateparam.K3 * (simulationvar.elapsedTics - statevar.startRampTics))));
                 xprintf(UXPRT,"%6d\n\r",statevar.setptTension);	//  System.out.println(tension);
                 break;
             case 5: // constant
-                statevar.setptTension = (float) (statevar.CLIMB_TENSION_FACTOR * statevar.GLIDER_WEIGHT);
+                statevar.setptTension = (float) (stateparam.CLIMB_TENSION_FACTOR * stateparam.GLIDER_WEIGHT);
                 if (statevar.taperFlag == 1)
                 {
                     statevar.setptTension *= 0.4 + 0.6 * 0.5
-                            * (1 + cosf(statevar.K4 * (simulationvar.elapsedTics - statevar.taperTics)));
+                            * (1 + cosf(stateparam.K4 * (simulationvar.elapsedTics - statevar.taperTics)));
                 }
                 break;
             case 6: // recovery
-                statevar.setptTension = statevar.MAX_PARACHUTE_TENSION;
-                if (measurements.lastCableSpeed > statevar.PROFILE_TRIGGER_CABLE_SPEED)
+                statevar.setptTension = stateparam.MAX_PARACHUTE_TENSION;
+                if (measurements.lastCableSpeed > stateparam.PROFILE_TRIGGER_CABLE_SPEED)
                 {
-                    statevar.setptTension *= cosf(statevar.K5 * (measurements.lastCableSpeed - statevar.PARACHUTE_TAPER_SPEED));
+                    statevar.setptTension *= cosf(stateparam.K5 * (measurements.lastCableSpeed - stateparam.PARACHUTE_TAPER_SPEED));
                     xprintf(UXPRT,"%6d\n\r",statevar.setptTension);	// System.out.println(tension);
                 }
                 break;            
@@ -524,8 +524,8 @@ void stateMachine(struct ETMCVAR* petmcvar)
         statevar.setptTension *= (float) calib_control_lever_get(); // scale by slider 
 
         //  filter the torque with about 1 Hz bandwidth
-        statevar.setptTorque = (statevar.setptTension * statevar.TENSION_TO_TORQUE); 
-        statevar.filt_torque += ((statevar.setptTorque - statevar.filt_torque) / 8);
+        statevar.setptTorque = (statevar.setptTension * stateparam.TENSION_TO_TORQUE); 
+        statevar.filt_torque += ((statevar.setptTorque - statevar.filt_torque) * ((float) 1.0 / 8);
 
         // torqueMessage.set_short((short) (statevar.filt_torque / scaleoffset.torqueScale), 0); // torque
      	can.id = CANID_TORQUE;
