@@ -50,23 +50,26 @@ void calib_control_lever(void)
 	unsigned int t_led = DTWTIME + FLASHCOUNT;	//	initial t_led
 	char vv[128];
 
-	xprintf (UXPRT,"\nBegin control level calibration\n\r");
-
+	xprintf (UXPRT,"\nBegin control lever calibration\n\r");
+	
+	// dummy read of SPI switches to deal with false 0000 initially returned
+	spi2_rw(spi_ledout, spi_swin, SPI2SIZE);
 	while(clcalstate < 6)
 	{
 		if (((int)(DTWTIME - t_led)) > 0) // Has the time expired?
 		{ //	Time expired
-			xprintf(UXPRT, "%5u %8x \n\r", clcalstate, sw);
 			//	read filtered control lever adc last value and update min and max values
 			adc_tmp = adc_last_filtered[CL_ADC_CHANNEL];
 			cloffset = (cloffset < adc_tmp) ? cloffset : adc_tmp;
 			clmax = (clmax > adc_tmp) ? clmax : adc_tmp;
 			//	Read SPI switches
+			//	Not sure why 
 			if (spi2_busy() != 0) // Is SPI2 busy?
 			{ // SPI completed  
 				spi2_rw(spi_ledout, spi_swin, SPI2SIZE); // Send/rcv SPI2SIZE bytes
-				//	convert to a binary word for comparisons (not general)
-				sw = (((int) spi_swin[0]) << 8) | (int) spi_swin[1];				
+				//	convert to a binary word for comparisons (not general for different SPI2SIZE)
+				sw = (((int) spi_swin[0]) << 8) | (int) spi_swin[1];
+				xprintf(UXPRT, "%5u %8x \n\r", clcalstate, sw);				
 				switch(clcalstate)
 				{				
 					case 0:	//	entry state

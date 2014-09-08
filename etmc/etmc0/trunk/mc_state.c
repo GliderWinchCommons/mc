@@ -259,22 +259,22 @@ void mc_state_init(struct ETMCVAR* petmcvar)
     stateparam.K5 = (float) (PI / (2 * stateparam.MAX_PARACHUTE_CABLE_SPEED - stateparam.PARACHUTE_TAPER_SPEED));
 
 // struct MCSCALEOFFSET
-        scaleoffset.torqueScale = (float) (1.0 / 32.0);
-        scaleoffset.tensionScale = (float) 0.25;
-        scaleoffset.tensionOffset = (float) 1024.0;
-        scaleoffset.cableAngleScale = (float) 0.5;
-        scaleoffset.cableAngleOffset = (float) 40.0;
-        scaleoffset.drumRadius = (float) 0.4;
-        scaleoffset.motorToDrum = (float) 7.0;    //  speed reduction motor to drum
-        scaleoffset.motorSpeedScale = (float) (1.0 / 128.0);
+    scaleoffset.torqueScale = (float) (1.0 / 32.0);
+    scaleoffset.tensionScale = (float) 0.25;
+    scaleoffset.tensionOffset = (float) 1024.0;
+    scaleoffset.cableAngleScale = (float) 0.5;
+    scaleoffset.cableAngleOffset = (float) 40.0;
+    scaleoffset.drumRadius = (float) 0.4;
+    scaleoffset.motorToDrum = (float) 7.0;    //  speed reduction motor to drum
+    scaleoffset.motorSpeedScale = (float) (1.0 / 128.0);
 
 // struct MCSIMULATIONVAR
-        simulationvar.fracTime = 0;
-        simulationvar.elapsedTics = -1;
-//        simulationvar.startTime = (passed from etmc0.c to us)
-        simulationvar.timeMillis = 0;
-//        simulationvar.nextStepTime = 0;
-//        //simulationvar.remainingTimeMillis = 0;
+    simulationvar.fracTime = 0;
+    simulationvar.elapsedTics = -1;
+//  simulationvar.startTime = (passed from etmc0.c to us)
+    simulationvar.timeMillis = 0;
+//  simulationvar.nextStepTime = 0;
+//  simulationvar.remainingTimeMillis = 0;
 
 	mc_state_launch_init();
 	
@@ -393,6 +393,12 @@ void stateMachine(struct ETMCVAR* petmcvar)
             	msg_out_mc(&can);
                 statevar.parametersRequestedFlag = 1;
             }
+            if ((statevar.parametersRequestedFlag == 1) 
+                    && (calib_control_lever_get() < (float) 0.05))
+            {
+                // reset and wait for control lever again                
+                statevar.parametersRequestedFlag = 0;
+            }
             // when we get the response, start the simulation
             if ((msgrcvlist & CANID_LAUNCH_PARAM) != 0 )
             {
@@ -479,7 +485,8 @@ void stateMachine(struct ETMCVAR* petmcvar)
                 statevar.setptTension = 0;
                 break;
             case 2: // profile 1
-                statevar.setptTension = (float) (stateparam.GROUND_TENSION_FACTOR * stateparam.GLIDER_WEIGHT * 0.5  * (1 - cosf(stateparam.K1 * (simulationvar.elapsedTics - statevar.startProfileTics))));
+                statevar.setptTension = (float) (stateparam.GROUND_TENSION_FACTOR * stateparam.GLIDER_WEIGHT
+                * 0.5  * (1 - cosf(stateparam.K1 * (simulationvar.elapsedTics - statevar.startProfileTics))));
                 break;
 
             case 3: // profile 2
@@ -545,18 +552,18 @@ void mc_state_lcd_poll(struct ETMCVAR* petmcvar)
 	if (((int) (DTWTIME - t_lcd)) > 0) 
     {
 		t_lcd += LCDPACE;
-		snprintf(lcdLine, 20, "State %4d", statevar.state); 
+		snprintf(lcdLine, 21, "State %4d", statevar.state); 
         lcd_printToLine(UARTLCD, 0, lcdLine);
         xprintf(UXPRT,"%s ",lcdLine);
-        snprintf(lcdLine, 20, "Tension: %10.1f", (double) statevar.setptTension);	
+        snprintf(lcdLine, 21, "Dsrd Tension: %5.2f", (double) statevar.setptTension);	
         lcd_printToLine(UARTLCD, 1, lcdLine);
         xprintf(UXPRT,"%s ",lcdLine);
-        snprintf(lcdLine, 20, "Time: %d", petmcvar->unixtime);      
+        snprintf(lcdLine, 21, "Time: %d", petmcvar->unixtime);      
         lcd_printToLine(UARTLCD, 2, lcdLine);
-        xprintf(UXPRT,"%s \n\r",lcdLine);
-		/*snprintf(lcdLine, 20, "Control Lever:  %5.3f", (double) calib_control_lever_get());		
+        xprintf(UXPRT,"%s ",lcdLine);
+		snprintf(lcdLine, 21, "Control Lvr: %7.3f", (double) calib_control_lever_get());		
         lcd_printToLine(UARTLCD, 3, lcdLine);
-        xprintf(UXPRT,"%s \n\r",lcdLine);*/
+        xprintf(UXPRT,"%s \n\r",lcdLine);
 	}
 	return;
 }
