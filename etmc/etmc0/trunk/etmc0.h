@@ -21,9 +21,12 @@ struct ETMCVAR
 {
 	char spi_ledout[SPI2SIZE];
 	char spi_swin[SPI2SIZE];
+	u8 fracTime; 
+	u32 elaspedTics;	
+	u32 unixtime;
+	//	not used but referenced in timekeeper
 	u8 count64;	
 	int timeCount;
-	unsigned int unixtime;
 };
 	
 
@@ -42,7 +45,6 @@ void mc_state_lcd_poll(struct ETMCVAR* petmcvar);
 /* @brief	: Output LCD data
  * @param	: petmcvar = pointer to variables in etmc0
  * ************************************************************************************** */
-
 
 #endif 
 

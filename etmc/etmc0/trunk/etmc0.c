@@ -61,6 +61,7 @@ u32	t_led;
 
 // 64th second counter
 u32 t_timeKeeper;
+u8 count64;
 #define SIXTYFOURTH (sysclk_freq/64);
 static struct ETMCVAR etmcvar;
 
@@ -181,7 +182,7 @@ int main(void)
 		/* Check for incoming CAN format msgs.  */
 		while ((pmc = msg_get()) != NULL)	// Any buffered?
 		{ 	// Here yes.  pmc points to msg struct
-			mc_state_msg_select(pmc);	// Select msgs needed for MC
+			mc_state_msg_select(pmc, &etmcvar);	// Select msgs needed for MC
 //xprintf(UXPRT,"U %d %08X\n\r",U++, pmc->id );
 		}
 

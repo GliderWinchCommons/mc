@@ -30,6 +30,7 @@ struct MCSTATEPARAM
     float TICSPERSECOND;
     float REALTIMEFACTOR;
     float STEPTIME;
+    float STEPTIMECLOCKS;
     
     float GRAVITY_ACCELERATION;
     float ZERO_CABLE_SPEED_TOLERANCE;
@@ -87,12 +88,12 @@ struct MCSCALEOFFSET
 };
 
 struct MCSIMULATIONVAR
-{   //  TimeMillis variables need to be just in seconds now tht we have good fp
-    unsigned char fracTime;
+{ 
+//    unsigned char fracTime;
 //	unsigned int startTime;  // not used?
-    int elapsedTics;
+//    int elapsedTics;
     //double simulationStrtTime;    //  not used?
-    double timeMillis;
+    //double timeMillis;
     u32 nextStepTime;
 };
 
@@ -169,6 +170,7 @@ static void mc_state_msgs_init(struct MCMSGSUSED* pmsgsused)
  * ************************************************************************************** */
 void mc_state_launch_init(void)
 {
+    //  this can be simpified for relanch re-initializing only those variables in state
 	t_lcd = DTWTIME + LCDPACE;
 
 // struct MCMEASUREMENTS
@@ -188,7 +190,7 @@ void mc_state_launch_init(void)
     statevar.startRampTics = 0;
     statevar.startRampTension = 0;
     statevar.peakCableSpeed = 0;
-    statevar.taperFlag = 1;
+    statevar.taperFlag = 1;     //  why 1 but something says its needed?
     statevar.taperTics = 0;
     statevar.minCableSpeed = 0;
     statevar.setptTension = 0;
@@ -209,7 +211,7 @@ void mc_state_launch_init(void)
 void mc_state_init(struct ETMCVAR* petmcvar)
 {
 // struct MCSTATEPARAM
-    //  Wwy do these need to be reinitialized?
+    //  these should not need re-initialization
 
     stateparam.TICSPERSECOND = 64;
     stateparam.STEPTIME = ((float) 1.0) / stateparam.TICSPERSECOND;
@@ -268,14 +270,13 @@ void mc_state_init(struct ETMCVAR* petmcvar)
     scaleoffset.motorToDrum = (float) 7.0;    //  speed reduction motor to drum
     scaleoffset.motorSpeedScale = (float) (1.0 / 128.0);
 
-// struct MCSIMULATIONVAR
-    simulationvar.fracTime = 0;
-    simulationvar.elapsedTics = -1;
+// struct MCSIMULATIONVAR    
 //  simulationvar.startTime = (passed from etmc0.c to us)
-    simulationvar.timeMillis = 0;
+//    simulationvar.timeMillis = 0;
     simulationvar.nextStepTime = 0;
 
-
+    petmcvar->fracTime = stateparam.TICSPERSECOND - 1;
+    petmcvar->elapsedTics = -1;
 	mc_state_launch_init();
 	
 	return;
@@ -306,7 +307,7 @@ unsigned int msgrcvlist = 0;	// Accumulate msgs received after sending a time ms
 #define RCV_CANID_MOTOR		    0x4
 #define RCV_CANID_LAUNCH_PARAM	0x8
 
-void mc_state_msg_select(struct CANRCVBUF* pcan)
+void mc_state_msg_select(struct CANRCVBUF* pcan, u32 elspTics)
 {
 	switch (pcan->id)
 	{	
@@ -323,7 +324,7 @@ void mc_state_msg_select(struct CANRCVBUF* pcan)
                 if (statevar.taperFlag == 0 && measurements.lastCableAngle > stateparam.TAPERANGLETRIG)
                 {
                 	statevar.taperFlag = 1;
-                	statevar.taperTics = simulationvar.elapsedTics;
+                	statevar.taperTics = elspTics;
                 }
 		msgsused.lastrcvdCableAngle.flag += 1;
 		msgrcvlist |= RCV_CANID_CABLE_ANGLE;
@@ -382,15 +383,18 @@ void stateMachine(struct ETMCVAR* petmcvar)
         && (statevar.tensionMessageFlag == 1) 
         && (statevar.speedMessageFlag == 1))
         {
-            simulationvar.elapsedTics++;
-            petmcvar->fracTime = (char) (simulationvar.elapsedTics % stateparam.TICSPERSECOND);
-            can.id = CANID_TIME; // time id
-            can.dlc = 1;
-            can.cd.us[0] = simulationvar.fracTime;
-            if (simulationvar.fracTime == 0)
+            petmcvar->elapsedTics++;
+            petmcvar->fracTime++;
+            can.id = CANID_TIME;    // time id
+            if (petmcvar->fracTime++ == stateparam.TICSPERSECOND)
             {
                 can.dlc      = 5;
                 can.cd.us[1] = (petmcvar->unixtime)++;
+            }
+            else
+            {
+                can.dlc = 1;
+                can.cd.us[0] = petmcvar->fracTime;
             }
             msg_out_mc(&can); // output to CAN+USB
             // next on time Time message time                   
@@ -433,13 +437,13 @@ void stateMachine(struct ETMCVAR* petmcvar)
                 
                 statevar.state = 2;
                 // // setStateled(2); 	// LED ???
-                statevar.startProfileTics = simulationvar.elapsedTics;
+                statevar.startProfileTics = petmcvar->elapsedTics;
                 sendStateMessage(2);
                 mc_debug_print();
             }
             break;
         case 2: // profile 1
-            if ((simulationvar.elapsedTics - statevar.startProfileTics) 
+            if ((petmcvar->elapsedTics - statevar.startProfileTics) 
                 >= (stateparam.SOFT_START_TIME * stateparam.TICSPERSECOND))
             {
                 statevar.state = 3;
@@ -454,7 +458,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
             if (measurements.lastCableSpeed < (statevar.peakCableSpeed * stateparam.PEAK_CABLE_SPEED_DROP))
             {
                 statevar.state = 4;
-                statevar.startRampTics = simulationvar.elapsedTics;
+                statevar.startRampTics = petmcvar->elapsedTics;
                 statevar.startRampTension = measurements.lastTension;
                 sendStateMessage(4);
                 // setStateled(4);
@@ -462,7 +466,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
             }
             break;
         case 4: // ramp
-            if (simulationvar.elapsedTics - statevar.startRampTics > stateparam.RAMP_TIME * stateparam.TICSPERSECOND)
+            if (petmcvar->elapsedTics - statevar.startRampTics > stateparam.RAMP_TIME * stateparam.TICSPERSECOND)
             {
                 statevar.state = 5;
                 // setStateled(5);
@@ -513,7 +517,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
                 break;
             case 2: // profile 1
                 statevar.setptTension = (float) (stateparam.GROUND_TENSION_FACTOR * stateparam.GLIDER_WEIGHT
-                * 0.5  * (1 - cosf(stateparam.K1 * (simulationvar.elapsedTics - statevar.startProfileTics))));
+                * 0.5  * (1 - cosf(stateparam.K1 * (petmcvar->elapsedTics - statevar.startProfileTics))));
                 break;
 
             case 3: // profile 2
@@ -533,7 +537,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
                 statevar.setptTension = (float) ((statevar.startRampTension
                         + (stateparam.CLIMB_TENSION_FACTOR * stateparam.GLIDER_WEIGHT
                         - statevar.startRampTension)
-                        * sinf(stateparam.K3 * (simulationvar.elapsedTics - statevar.startRampTics))));
+                        * sinf(stateparam.K3 * (petmcvar->elapsedTics - statevar.startRampTics))));
                 xprintf(UXPRT,"%6d\n\r", (double) statevar.setptTension);	//  System.out.println(tension);
                 break;
             case 5: // constant
@@ -541,7 +545,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
                 if (statevar.taperFlag == 1)
                 {
                     statevar.setptTension *= 0.4 + 0.6 * 0.5
-                            * (1 + cosf(stateparam.K4 * (simulationvar.elapsedTics - statevar.taperTics)));
+                            * (1 + cosf(stateparam.K4 * (petmcvar->elapsedTics - statevar.taperTics)));
                 }
                 break;
             case 6: // recovery

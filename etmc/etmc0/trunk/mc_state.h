@@ -15,7 +15,7 @@ void mc_state_init(struct ETMCVAR* petmcvar);
 /* @brief	: Initialize structs for state machine
  * @param	: petmcvar = pointer to struct with variables passed from etmc0.c
  * ************************************************************************************** */
-void mc_state_msg_select(struct CANRCVBUF* pcan);
+void mc_state_msg_select(struct CANRCVBUF* pcan, struct ETMCVAR* petmcvar);
 /* @brief	: Select msgs of interest for MC out of incoming stream of msgs
  * @param	: pcan = pointer to can msg
  * ************************************************************************************** */
