@@ -20,8 +20,9 @@
 struct ETMCVAR
 {
 	char spi_ledout[SPI2SIZE];
-	char spi_swin[SPI2SIZE];	
-	int timeFlag;
+	char spi_swin[SPI2SIZE];
+	u8 count64;	
+	int timeCount;
 	unsigned int unixtime;
 };
 	

@@ -22,14 +22,15 @@
 u32 t_lcd;
 #define LCDPACE (sysclk_freq/8) // LCD pacing increment
 
+u32 t_timeKeeper;
+
 struct MCSTATEPARAM
 {
     //  these need to be segregated into launch parameters and winch parameters
     float TICSPERSECOND;
-    float STEPTIME;
     float REALTIMEFACTOR;
-
-    float STEPTIMEMILLIS;
+    float STEPTIME;
+    
     float GRAVITY_ACCELERATION;
     float ZERO_CABLE_SPEED_TOLERANCE;
     //  DRIVE PARAMETERS
@@ -88,12 +89,11 @@ struct MCSCALEOFFSET
 struct MCSIMULATIONVAR
 {   //  TimeMillis variables need to be just in seconds now tht we have good fp
     unsigned char fracTime;
-	unsigned int startTime;
+//	unsigned int startTime;  // not used?
     int elapsedTics;
-    double simulationStrtTime;      // milliseconds since Unix Epoc
+    //double simulationStrtTime;    //  not used?
     double timeMillis;
-    //float nextStepTime;
-    //double remainingTimeMillis;
+    u32 nextStepTime;
 };
 
 struct MCMEASUREMENTS
@@ -109,7 +109,7 @@ struct MCSTATEVAR
     // state machine stuff
     int state;
     int speedMessageFlag;
-    int tensionMessageReceivedFlag;
+    int tensionMessageFlag;
     int paramReceivedFlag;
     int parametersRequestedFlag;
     int launchResetFlag;
@@ -128,8 +128,8 @@ struct MCSTATEVAR
 struct MCRCVDCANMSG
 {
 	struct CANRCVBUF can;	// Msg
-	unsigned int	dtw;	// DTW count
-	int flag;		// 
+	unsigned int dtw;	    // DTW count  
+	int flag;		        
 
 };
 
@@ -169,7 +169,7 @@ static void mc_state_msgs_init(struct MCMSGSUSED* pmsgsused)
  * ************************************************************************************** */
 void mc_state_launch_init(void)
 {
-	t_lcd        = DTWTIME + LCDPACE;
+	t_lcd = DTWTIME + LCDPACE;
 
 // struct MCMEASUREMENTS
     measurements.lastTension = 0;
@@ -180,7 +180,7 @@ void mc_state_launch_init(void)
     // struct MCSTATESTUF
     statevar.state = 0;
     statevar.speedMessageFlag = 0;
-    statevar.tensionMessageReceivedFlag = 0;
+    statevar.tensionMessageFlag = 0;
     statevar.paramReceivedFlag = 0;
     statevar.parametersRequestedFlag = 0;
     statevar.launchResetFlag = 1;
@@ -215,7 +215,7 @@ void mc_state_init(struct ETMCVAR* petmcvar)
     stateparam.STEPTIME = ((float) 1.0) / stateparam.TICSPERSECOND;
     stateparam.REALTIMEFACTOR = ((float) 1.0);
 
-    stateparam.STEPTIMEMILLIS = 1000 * stateparam.STEPTIME / stateparam.REALTIMEFACTOR;
+    stateparam.STEPTIMECLOCKS = sysclk_freq * stateparam.STEPTIME / stateparam.REALTIMEFACTOR;
     stateparam.GRAVITY_ACCELERATION = (float) 9.81;
     stateparam.ZERO_CABLE_SPEED_TOLERANCE = (float) 0.1;
     //  DRIVE PARAMETERS
@@ -273,8 +273,8 @@ void mc_state_init(struct ETMCVAR* petmcvar)
     simulationvar.elapsedTics = -1;
 //  simulationvar.startTime = (passed from etmc0.c to us)
     simulationvar.timeMillis = 0;
-//  simulationvar.nextStepTime = 0;
-//  simulationvar.remainingTimeMillis = 0;
+    simulationvar.nextStepTime = 0;
+
 
 	mc_state_launch_init();
 	
@@ -314,7 +314,8 @@ void mc_state_msg_select(struct CANRCVBUF* pcan)
 		msgsused.lastrcvdTension.can = *pcan;
 		msgsused.lastrcvdTension.flag += 1;
 		measurements.lastTension = ((float)pcan->cd.us[0] - scaleoffset.tensionOffset) * scaleoffset.tensionScale;
-		msgrcvlist |= RCV_CANID_TENSION;
+		statevar.tensionMessageFlag = 1;
+        msgrcvlist |= RCV_CANID_TENSION;
 		break;
 	case CANID_CABLE_ANGLE:	// 0x3A000000	 464 
 		msgsused.lastrcvdCableAngle.can = *pcan;
@@ -332,11 +333,13 @@ void mc_state_msg_select(struct CANRCVBUF* pcan)
 		measurements.lastMotorSpeed = (float)pcan->cd.us[0] * scaleoffset.motorSpeedScale;
 		measurements.lastCableSpeed = (float) (2 * 3.14159 * scaleoffset.drumRadius * measurements.lastMotorSpeed / scaleoffset.motorToDrum);
 		msgsused.lastrcvdMotorSpeed.flag += 1;
+        statevar.speedMessageFlag = 1;
 		msgrcvlist |= RCV_CANID_MOTOR;
 		break;
 	case CANID_LAUNCH_PARAM:	// 0x28E00000	 327 
 		msgsused.lastrcvdLaunchParam.can = *pcan;
 		msgsused.lastrcvdLaunchParam.flag += 1;
+        statevar.paramReceivedFlag = 1;
 		msgrcvlist |= CANID_LAUNCH_PARAM;
 		break;
 	}
@@ -361,14 +364,38 @@ void stateMachine(struct ETMCVAR* petmcvar)
 { 
 	struct CANRCVBUF can;
 
-	if (petmcvar->timeFlag > 0)
-	{ // Here a time msg has been sent
-		petmcvar->timeFlag = 0;	// Reset flag
-		msgrcvlist = 0;	// Show that no needed msgs have been received
-	}
 
-    //  next Time message time                   
-    //  simulationvar.nextStepTime += stateparam.STEPTIMEMILLIS;
+    if (statevar.launchResetFlag == 1)   // init variables for launch
+     {
+        //  reset variables for next launch
+         statevar.state = 0;
+         statevar.tensionMessageFlag = statevar.speedMessageFlag = 0;
+         statevar.parametersRequestedFlag = 0;
+         statevar.paramReceivedFlag = 0;
+         statevar.launchResetFlag = 0;
+         statevar.filt_torque = 0;  //  This should be set to 0 on entry to
+                                    //  Prep from Safe in real system
+     }
+
+    //  timekeeping temporarily holding for tension/motor messages
+    if ((DTWTIME >= simulationvar.nextStepTime )  
+        && (statevar.tensionMessageFlag == 1) 
+        && (statevar.speedMessageFlag == 1))
+        {
+            simulationvar.elapsedTics++;
+            petmcvar->fracTime = (char) (simulationvar.elapsedTics % stateparam.TICSPERSECOND);
+            can.id = CANID_TIME; // time id
+            can.dlc = 1;
+            can.cd.us[0] = simulationvar.fracTime;
+            if (simulationvar.fracTime == 0)
+            {
+                can.dlc      = 5;
+                can.cd.us[1] = (petmcvar->unixtime)++;
+            }
+            msg_out_mc(&can); // output to CAN+USB
+            // next on time Time message time                   
+            simulationvar.nextStepTime  += stateparam.STEPTIMECLOCKS;
+        } 
 
     switch (statevar.state)
     {
@@ -400,9 +427,9 @@ void stateMachine(struct ETMCVAR* petmcvar)
                 statevar.parametersRequestedFlag = 0;
             }
             // when we get the response, start the simulation
-            if ((msgrcvlist & CANID_LAUNCH_PARAM) != 0 )
+            if (statevar.paramReceivedFlag == 1)
             {
-                simulationvar.startTime = (double) DTWTIME;
+            //    simulationvar.startTime = (double) DTWTIME; // not used?
                 
                 statevar.state = 2;
                 // // setStateled(2); 	// LED ???
@@ -472,8 +499,8 @@ void stateMachine(struct ETMCVAR* petmcvar)
             break;
     }   // end of switch (statevar.state)
     
-    //  Template for Desired Tension and Control Law     
-    if (msgrcvlist & (RCV_CANID_TENSION | RCV_CANID_MOTOR))   
+    //  Template for Desired Tension and Control Law
+    if ((statevar.tensionMessageFlag == 1) && (statevar.speedMessageFlag == 1))   
     {
         switch (statevar.state)
         {
@@ -538,6 +565,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
         can.dlc = 2;
         can.cd.us[0] = (short) (statevar.filt_torque / scaleoffset.torqueScale);
         msg_out_mc(&can);
+        statevar.tensionMessageFlag = statevar.speedMessageFlag = 0;
     }            
 }
 

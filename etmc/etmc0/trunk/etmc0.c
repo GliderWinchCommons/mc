@@ -62,9 +62,7 @@ u32	t_led;
 // 64th second counter
 u32 t_timeKeeper;
 #define SIXTYFOURTH (sysclk_freq/64);
-u8 count64 = 0;
-
-struct ETMCVAR etmcvar;
+static struct ETMCVAR etmcvar;
 
 u32	t_spi;
 
@@ -92,11 +90,11 @@ void timeKeeper (void)
 		if (((int)(DTWTIME - t_timeKeeper)) > 0) // Has the time expired?
 		{ // Here, yes.
 			t_timeKeeper += SIXTYFOURTH; 	// Set next toggle time
-			count64++;
+			etmcvar.count64++;
 			can.id       = CANID_TIME; // time id
-			if(count64 == 64) {
+			if(etmcvar.count64 == 64) {
 				etmcvar.unixtime++;
-				count64 = 0;
+				etmcvar.count64 = 0;
 				can.dlc      = 4;
 				can.cd.us[0] = etmcvar.unixtime;
 //xprintf(UXPRT,"T %d\n\r",etmcvar.unixtime);
@@ -106,7 +104,7 @@ void timeKeeper (void)
 				can.cd.us[0] = count64;
 			}
 			msg_out_mc(&can); // Output to CAN+USB
-			etmcvar.timeFlag = 1;
+			etmcvar.timeCount = +1;
 		}
 	}
 /* **************************************************************************************
@@ -152,8 +150,8 @@ int main(void)
 	calib_control_lever();
 	#endif
 	/* --------------------- Initial times ---------------------------------------------------------------------------- */
-		t_led        = DTWTIME + FLASHCOUNT; 
-		t_timeKeeper = DTWTIME + SIXTYFOURTH;
+	t_led        = DTWTIME + FLASHCOUNT; 
+	t_timeKeeper = DTWTIME + SIXTYFOURTH;
 
 	t_loop0 = DTWTIME;
 	t_loop9 = DTWTIME + 168000000; // 1 sec time
@@ -166,7 +164,7 @@ int main(void)
 
 		if (((int)(DTWTIME - t_loop9)) > 0 ) // Periodic display
 		{
-			xprintf(UXPRT,"%d\n\r",t_max);
+			xprintf(UXPRT,"%d\n\r", t_max);
 			if (++t_ctr > 4) {
 				t_ctr = 0;
 				t_max = 0;	// Reset max
@@ -177,7 +175,8 @@ int main(void)
 
 		ledHeartbeat();	// Flash Orange LED to show loop running
 
-		timeKeeper();	// 
+		//	time keeping is temporarily being performed in mc_state.c
+		//	timeKeeper();	// 
 
 		/* Check for incoming CAN format msgs.  */
 		while ((pmc = msg_get()) != NULL)	// Any buffered?
