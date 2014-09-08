@@ -20,10 +20,6 @@
 #include "4x20lcd.h"
 #include "beep_n_lcd.h"
 
-extern struct ETMCVAR etmcvar;
-
-#define spi_ledout etmcvar.spi_ledout
-#define spi_swin etmcvar.spi_swin
 
 
 /* ***********************************************************************************************************
@@ -42,7 +38,7 @@ extern struct ETMCVAR etmcvar;
 static int cloffset = 0, clmax = 0;	// Min and maximum values observed for control lever
 static float fpclscale;		//	CL conversion scale factor 
 
-void calib_control_lever(void)
+void calib_control_lever(struct ETMCVAR* petmcvar)
 {
 	int clcalstate = 0;		// state for control lever intial calibration
 	int sw = 0;			// binary for holding switch values
@@ -53,7 +49,7 @@ void calib_control_lever(void)
 	xprintf (UXPRT,"\nBegin control lever calibration\n\r");
 	
 	// dummy read of SPI switches to deal with false 0000 initially returned
-	spi2_rw(spi_ledout, spi_swin, SPI2SIZE);
+	spi2_rw(petmcvar->spi_ledout, petmcvar->spi_swin, SPI2SIZE);
 	while(clcalstate < 6)
 	{
 		if (((int)(DTWTIME - t_led)) > 0) // Has the time expired?
@@ -66,9 +62,9 @@ void calib_control_lever(void)
 			//	Not sure why 
 			if (spi2_busy() != 0) // Is SPI2 busy?
 			{ // SPI completed  
-				spi2_rw(spi_ledout, spi_swin, SPI2SIZE); // Send/rcv SPI2SIZE bytes
+				spi2_rw(petmcvar->spi_ledout, petmcvar->spi_swin, SPI2SIZE); // Send/rcv SPI2SIZE bytes
 				//	convert to a binary word for comparisons (not general for different SPI2SIZE)
-				sw = (((int) spi_swin[0]) << 8) | (int) spi_swin[1];
+				sw = (((int) petmcvar->spi_swin[0]) << 8) | (int) petmcvar->spi_swin[1];
 				xprintf(UXPRT, "%5u %8x \n\r", clcalstate, sw);				
 				switch(clcalstate)
 				{				

@@ -590,7 +590,7 @@ void mc_state_lcd_poll(struct ETMCVAR* petmcvar)
         snprintf(lcdLine, 21, "Dsrd Tension: %5.2f", (double) statevar.setptTension);	
         lcd_printToLine(UARTLCD, 1, lcdLine);
         xprintf(UXPRT,"%s ",lcdLine);
-        snprintf(lcdLine, 21, "Time: %d", petmcvar->unixtime);      
+        snprintf(lcdLine, 21, "Time: %d", (int) petmcvar->unixtime);      
         lcd_printToLine(UARTLCD, 2, lcdLine);
         xprintf(UXPRT,"%s ",lcdLine);
 		snprintf(lcdLine, 21, "Control Lvr: %7.3f", (double) calib_control_lever_get());		

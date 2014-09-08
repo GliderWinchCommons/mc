@@ -22,7 +22,7 @@ struct ETMCVAR
 	char spi_ledout[SPI2SIZE];
 	char spi_swin[SPI2SIZE];
 	u8 fracTime; 
-	u32 elaspedTics;	
+	u32 elapsedTics;	
 	u32 unixtime;
 	//	not used but referenced in timekeeper
 	u8 count64;	

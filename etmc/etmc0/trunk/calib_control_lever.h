@@ -14,7 +14,7 @@
 
 
 /* *********************************************************************************************************** */
-void calib_control_lever(void);
+void calib_control_lever(struct ETMCVAR* petmcvar);
 /* @brief	:Setup & initialization functions 
  ************************************************************************************************************* */
 float calib_control_lever_get(void);

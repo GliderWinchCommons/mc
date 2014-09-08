@@ -148,7 +148,7 @@ int main(void)
 
 	mc_state_init(&etmcvar);
 	#if George
-	calib_control_lever();
+	calib_control_lever(&etmcvar);
 	#endif
 	/* --------------------- Initial times ---------------------------------------------------------------------------- */
 	t_led        = DTWTIME + FLASHCOUNT; 
@@ -174,7 +174,7 @@ int main(void)
 		}
 		t_loop0 = DTWTIME;
 
-		ledHeartbeat();	// Flash Orange LED to show loop running
+		ledHeartbeat();	// LED pattern to show processor is alive
 
 		//	time keeping is temporarily being performed in mc_state.c
 		//	timeKeeper();	// 
