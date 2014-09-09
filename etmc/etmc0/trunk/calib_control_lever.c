@@ -19,6 +19,7 @@
 #include "spi2rw.h"
 #include "4x20lcd.h"
 #include "beep_n_lcd.h"
+#include "etmc0.h"
 
 
 
@@ -35,7 +36,9 @@
 #define CL_ADC_CHANNEL 	0
 #define FLASHCOUNT (sysclk_freq/8);	// Orange LED flash increment
 
-static int cloffset = 0, clmax = 0;	// Min and maximum values observed for control lever
+// Min and maximum values observed for control lever
+static int cloffset = 0; 
+static int clmax = 0;	
 static float fpclscale;		//	CL conversion scale factor 
 
 void calib_control_lever(struct ETMCVAR* petmcvar)

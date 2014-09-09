@@ -50,7 +50,6 @@
 #include "etmc0.h"
 #include "mc_state.h"
 
-
 // State machine
 int currentState = 0;
 int nextState = 0;
@@ -146,16 +145,19 @@ int main(void)
 	/* Set a fixed unix time for now. */
 	etmcvar.unixtime = 1409768561; // GMT: Wed, 03 Sep 2014 18:22:41 GMT	
 
-	mc_state_init(&etmcvar);
+	
 	#if George
 	calib_control_lever(&etmcvar);
 	#endif
+
+	mc_state_init(&etmcvar);
+
 	/* --------------------- Initial times ---------------------------------------------------------------------------- */
 	t_led        = DTWTIME + FLASHCOUNT; 
 	t_timeKeeper = DTWTIME + SIXTYFOURTH;
-
+	
 	t_loop0 = DTWTIME;
-	t_loop9 = DTWTIME + 168000000; // 1 sec time
+	t_loop9 = DTWTIME + sysclk_freq; 	// 1 sec time
 /* --------------------- Endless Polling Loop ----------------------------------------------- */
 	while (1==1)
 	{
