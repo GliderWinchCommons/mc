@@ -408,13 +408,13 @@ void stateMachine(struct ETMCVAR* petmcvar)
             if (++(petmcvar->fracTime) != stateparam.TICSPERSECOND)
             {
                 can.dlc = 1;
-                can.cd.us[0] = petmcvar->fracTime;
+                can.cd.uc[0] = petmcvar->fracTime;
             }
             else
             {                
                 can.dlc = 5;
-                can.cd.us[0] = (petmcvar->unixtime)++;
-                can.cd.us[4] = (u8) 0;    //  status proxy
+                can.cd.ui[0] = (petmcvar->unixtime)++;
+                can.cd.uc[4] = (u8) 0;    //  status proxy
                 petmcvar->fracTime = 0;
             }            
             msg_out_mc(&can); // output to CAN+USB
@@ -431,21 +431,30 @@ void stateMachine(struct ETMCVAR* petmcvar)
             if (++(petmcvar->fracTime) != stateparam.TICSPERSECOND)
             {
                 can.dlc = 1;
-                can.cd.us[0] = petmcvar->fracTime;
+                can.cd.uc[0] = petmcvar->fracTime;
             }
             else
             {                
                 can.dlc = 5;
-                can.cd.us[0] = (petmcvar->unixtime)++;
-                can.cd.us[4] = (u8) 0;    //  status proxy
+                can.cd.ui[0] = (petmcvar->unixtime)++;
+                can.cd.uc[4] = (u8) 0;    //  status proxy
                 petmcvar->fracTime = 0;
             }            
             msg_out_mc(&can); // output to CAN+USB
             // next on time Time message time                   
             simulationvar.nextStepTime  += stateparam.STEPTIMECLOCKS;
+
+            // dummy control lever messages to flush buffer
+            can.id = CANID_CONTROL_LEVER;
+            can.dlc = 0;        
+            for (int i = 1; i < 6; i++)
+            {
+                msg_out_mc(&can);
+            }    
         } 
         #endif
 
+        
         
     switch (statevar.state)
     {
