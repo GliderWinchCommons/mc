@@ -216,7 +216,7 @@ void mc_state_init(struct ETMCVAR* petmcvar)
 // struct MCSTATEPARAM
     //  these should not need re-initialization
 
-    stateparam.TICSPERSECOND = 32;
+    stateparam.TICSPERSECOND = 24;
     stateparam.STEPTIME = ((float) 1.0) / stateparam.TICSPERSECOND;
     stateparam.REALTIMEFACTOR = ((float) 1.0);
 
@@ -408,14 +408,15 @@ void stateMachine(struct ETMCVAR* petmcvar)
             if (++(petmcvar->fracTime) != stateparam.TICSPERSECOND)
             {
                 can.dlc = 1;
+                can.cd.us[0] = petmcvar->fracTime;
             }
             else
             {                
                 can.dlc = 5;
-                can.cd.us[1] = (petmcvar->unixtime)++;
+                can.cd.us[0] = (petmcvar->unixtime)++;
+                can.cd.us[4] = (u8) 0;    //  status proxy
                 petmcvar->fracTime = 0;
-            }
-            can.cd.us[0] = petmcvar->fracTime;
+            }            
             msg_out_mc(&can); // output to CAN+USB
             // next on time Time message time                   
             simulationvar.nextStepTime  += stateparam.STEPTIMECLOCKS;
@@ -430,14 +431,15 @@ void stateMachine(struct ETMCVAR* petmcvar)
             if (++(petmcvar->fracTime) != stateparam.TICSPERSECOND)
             {
                 can.dlc = 1;
+                can.cd.us[0] = petmcvar->fracTime;
             }
             else
             {                
                 can.dlc = 5;
-                can.cd.us[1] = (petmcvar->unixtime)++;
+                can.cd.us[0] = (petmcvar->unixtime)++;
+                can.cd.us[4] = (u8) 0;    //  status proxy
                 petmcvar->fracTime = 0;
-            }
-            can.cd.us[0] = petmcvar->fracTime;
+            }            
             msg_out_mc(&can); // output to CAN+USB
             // next on time Time message time                   
             simulationvar.nextStepTime  += stateparam.STEPTIMECLOCKS;
