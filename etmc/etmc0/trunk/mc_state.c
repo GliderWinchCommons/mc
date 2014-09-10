@@ -20,7 +20,7 @@
 
 // lcd
 u32 t_lcd;
-#define LCDPACE (sysclk_freq/8) // LCD pacing increment
+#define LCDPACE (sysclk_freq/4) // LCD pacing increment
 
 u32 t_timeKeeper;
 
@@ -298,7 +298,7 @@ static void sendStateMessage(int newState)
 	struct CANRCVBUF stateMessage;
     stateMessage.id = CANID_STATE;
 	stateMessage.dlc = 1;
-	stateMessage.cd.uc[0] = newState + 1;
+	stateMessage.cd.uc[0] = newState;
 	msg_out_mc(&stateMessage);
 	return;
 }
@@ -455,12 +455,11 @@ void stateMachine(struct ETMCVAR* petmcvar)
             { 
                 statevar.state = 1; // going to armed state
                 // setStateled(1);	// ??? LED
-                sendStateMessage(1);
+                sendStateMessage(2);
                 mc_debug_print();
             }
             break;
-        case 1: // armed
-            
+        case 1: // armed            
             if ((statevar.parametersRequestedFlag == 0) 
                     && (calib_control_lever_get() > (float) 0.95))
             {
@@ -482,9 +481,9 @@ void stateMachine(struct ETMCVAR* petmcvar)
             //    simulationvar.startTime = (double) DTWTIME; // not used?
                 
                 statevar.state = 2;
-                // // setStateled(2); 	// LED ???
+                // setStateled(2); 	// LED ???
                 statevar.startProfileTics = petmcvar->elapsedTics;
-                sendStateMessage(2);
+                sendStateMessage(3);
                 mc_debug_print();
             }
             break;
@@ -494,7 +493,6 @@ void stateMachine(struct ETMCVAR* petmcvar)
             {
                 statevar.state = 3;
                 statevar.peakCableSpeed = measurements.lastCableSpeed;
-                // setStateled(3);
                 mc_debug_print();
             }
             break;
@@ -523,7 +521,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
             }
             break;
         case 5: // constant
-            xprintf(UXPRT,"%6d\n\r", (double) measurements.lastCableSpeed);
+            //  xprintf(UXPRT,"%6d\n\r", (double) measurements.lastCableSpeed);
             if (measurements.lastCableSpeed < statevar.minCableSpeed)
             {
                 statevar.minCableSpeed = measurements.lastCableSpeed;
@@ -537,12 +535,12 @@ void stateMachine(struct ETMCVAR* petmcvar)
             }
             break;
         case 6: // recovery
-             // xprintf(UXPRT,"%6d\n\r",measurements.lastCableSpeed);
+             //xprintf(UXPRT,"%6d\n\r",measurements.lastCableSpeed);
             if (measurements.lastCableSpeed < stateparam.ZERO_CABLE_SPEED_TOLERANCE)
             {
                 statevar.state = 0;
                 // setStateled(0);
-                sendStateMessage(0);
+                sendStateMessage(1);
                 mc_debug_print();
                 statevar.launchResetFlag = 1;                            
             }
@@ -571,12 +569,12 @@ void stateMachine(struct ETMCVAR* petmcvar)
                 if (measurements.lastCableSpeed < stateparam.PROFILE_TRIGGER_CABLE_SPEED)
                 {
                     statevar.setptTension = stateparam.GROUND_TENSION_FACTOR * stateparam.GLIDER_WEIGHT;
-                    xprintf(UXPRT,"%6d\n\r", (double) statevar.setptTension);	//  System.out.println(tension);
+                    //xprintf(UXPRT,"%6d\n\r", (double) statevar.setptTension);	//  System.out.println(tension);
                 } 
 	             else
                 {
                     statevar.setptTension = (float) (stateparam.GROUND_TENSION_FACTOR * stateparam.GLIDER_WEIGHT * cosf(stateparam.K2 * (measurements.lastCableSpeed - stateparam.PROFILE_TRIGGER_CABLE_SPEED)));
-                    xprintf(UXPRT,"%6d\n\r", (double) statevar.setptTension);	// System.out.println(tension);
+                    //xprintf(UXPRT,"%6d\n\r", (double) statevar.setptTension);	// System.out.println(tension);
                 }
                 break;
             case 4: // ramp
@@ -584,7 +582,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
                         + (stateparam.CLIMB_TENSION_FACTOR * stateparam.GLIDER_WEIGHT
                         - statevar.startRampTension)
                         * sinf(stateparam.K3 * (petmcvar->elapsedTics - statevar.startRampTics))));
-                xprintf(UXPRT,"%6d\n\r", (double) statevar.setptTension);	//  System.out.println(tension);
+                //xprintf(UXPRT,"%6d\n\r", (double) statevar.setptTension);	//  System.out.println(tension);
                 break;
             case 5: // constant
                 statevar.setptTension = (float) (stateparam.CLIMB_TENSION_FACTOR * stateparam.GLIDER_WEIGHT);
@@ -599,7 +597,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
                 if (measurements.lastCableSpeed > stateparam.PROFILE_TRIGGER_CABLE_SPEED)
                 {
                     statevar.setptTension *= cosf(stateparam.K5 * (measurements.lastCableSpeed - stateparam.PARACHUTE_TAPER_SPEED));
-                    xprintf(UXPRT,"%6d\n\r",(double) statevar.setptTension);	// System.out.println(tension);
+                    //xprintf(UXPRT,"%6d\n\r",(double) statevar.setptTension);	// System.out.println(tension);
                 }
                 break;            
         }

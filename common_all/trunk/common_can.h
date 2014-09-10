@@ -401,15 +401,15 @@ Program load addresses, or sequence number for other multi-msg data payloads
 /* Buffering incoming CAN messages */
 union CANDATA	// Unionize for easier cooperation amongst types
 {
-	unsigned long long ull;
-	signed long long   sll;
-	u32 	   ui[2];
-	u16 	   us[4];
-	u8 	   uc[8];
-	u8	   u8[8];
-	s32        si[2];
-	s16        ss[4];
-	s8         sc[8];
+	unsigned long long 	ull;
+	signed long long   	sll;
+	u32 	   			ui[2];
+	u16 	   			us[4];
+	u8 	   				uc[8];
+	u8	   				u8[8];
+	s32        			si[2];
+	s16        			ss[4];
+	s8         			sc[8];
 };
 struct CANRCVBUF		// Combine CAN msg ID and data fields
 { //                               offset  name:     verbose desciption

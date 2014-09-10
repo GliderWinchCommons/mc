@@ -182,7 +182,7 @@ int main(void)
 		//	timeKeeper();	// 
 
 		/* Check for incoming CAN format msgs.  */
-		while ((pmc = msg_get()) != NULL)	// Any buffered?
+		if ((pmc = msg_get()) != NULL)	// Any buffered?
 		{ 	// Here yes.  pmc points to msg struct
 			mc_state_msg_select(pmc, &etmcvar);	// Select msgs needed for MC
 //xprintf(UXPRT,"U %d %08X\n\r",U++, pmc->id );
