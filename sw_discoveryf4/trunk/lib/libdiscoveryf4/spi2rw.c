@@ -134,7 +134,7 @@ When the count of bytes to transfer has been exhausted the read interrupt enable
 off (not really necessary), and the i/o pin with the CS line is brought back high. 
 */
 
-	volatile unsigned int dummy;
+	__attribute__ ((unused)) unsigned int dummy;
 
 	if ( (SPI2_SR & SPI_SR_RXNE) != 0)  // Check for bogus interrupt
 	{ /* Here, valid receive interrupt. */

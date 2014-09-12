@@ -149,7 +149,7 @@ TIM12 interrupt for CH1 and CH2
    ###################################################################################### */
 void TIM8_BRK_TIM12_IRQHandler(void)
 {
-	volatile u32 dummy;
+	__attribute__ ((unused)) u32 dummy;
 
 	if (TIM12_SR & 0x2)	
 	{ // Here CH1 OC

@@ -8,6 +8,9 @@
 
 */
 #include "CAN_error_msgs.h"
+#include "clockspecifysetup.h"
+#include "xprintf.h"
+
 
 
 /* Error counters */
@@ -98,4 +101,36 @@ struct CANERR2 Errors_get_count(void)
 	return err; // Return count, and step 
 }
 
+
+/* **************************************************************************************
+ * void CAN_error_msg_poll(int uxprt);
+ * @brief	: Periodically print error counters
+ * @param	: uxprt = serial port number (1-6)
+ * ************************************************************************************** */
+static u32 next_time;	// Next DTW time to print
+static u32 increment;	// Number of ticks between prints
+static u32 init_sw = 0;	// One time initialization switch
+
+void CAN_error_msg_poll(int uxprt)
+{
+	int i;
+	if (init_sw == 0) 
+	{
+		init_sw = 1;
+		increment = (sysclk_freq/1);
+		next_time = DTWTIME + increment/10;
+	}
+
+	if (((int)(DTWTIME - next_time)) > 0) // Has the time expired?
+	{
+		next_time = DTWTIME + increment;
+		xprintf(uxprt,"MSGS ER CT: ");
+		for (i = 0; i < 10; i++)
+		{
+			xprintf(uxprt,"%d ",err_ctrs[i]);
+		}
+		xprintf(uxprt,"\n\r");
+	}
+	return;
+}
 

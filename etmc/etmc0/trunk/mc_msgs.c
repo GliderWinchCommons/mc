@@ -13,13 +13,16 @@
 #include "canwinch_ldr.h"
 #include "CAN_test_msgs.h"
 #include "CAN_error_msgs.h"
+#include "xprintf.h"
+#include "init_hardware_mc.h"
+#include "mc_state.h"
 
 
 /* Advance circular pointer macro */
 int incIdx(int x, int y){x += 1; if (x >= y) x = 0; return x;} 
 
 /* Circular buffer for incoming CAN + USB -> MC msgs */
-#define CANMCBUFSIZE	8			// Number of incoming CAN msgs to buffer
+#define CANMCBUFSIZE	32			// Number of incoming CAN msgs to buffer
 static struct CANRCVBUF canmcbuf[CANMCBUFSIZE];
 static int canmcidxi = 0;			// Incoming index into canbuf
 static int canmcidxm = 0;			// Outgoing index into canbuf
@@ -122,7 +125,7 @@ static struct CANRCVBUF* msg_get_usb(void)
 	struct CANRCVBUF* p = 0;  // default to NULL
 
 	/* Each time 'USB_PC_get_msg_mode' is called it adds any buffered incoming ASCII chars */
-	temp=USB_PC_get_msg_mode(STDIN_FILENO, &gatewayToPC, &canrcvbuf);	// Check if msg is ready
+	temp=USB_PC_get_msg_mode(STDIN_FILENO, &pctogateway, &canrcvbuf);	// Check if msg is ready
 	if (temp != 0)	// Do we have completion of a msg?
 	{ // Here, yes.  We have a msg, but it might not be valid.
 		if ( temp == 1 ) // Was valid?
@@ -131,19 +134,23 @@ static struct CANRCVBUF* msg_get_usb(void)
 			if (tmp < 0)	// Did the compression detect some anomolies?
 			{ // Here, something wrong with the msg--
 				msg_get_usb_err1 += 1;	// Count errors
+xprintf(UXPRT,"ER1 %d\n\r",tmp);
 			}
 			else
 			{ // Here, msg is OK msg from the PC
 				p = &canrcvbuf;	// Return pointer to struct with msg
+				/* Initialize struct for next msg from PC to gateway */
+				PC_msg_initg(&pctogateway);	
 			}
 		}
 		else
 		{ // Something wrong with the msg.  Count the various types of error returns from 'USB_PC_msg_getASCII'
 			Errors_USB_PC_get_msg_mode(temp);
+xprintf(UXPRT,"ER2 %d\n\r",temp);
+
 		} // Note: 'pctogateway' gets re-intialized in 'PC_msg_initg' when there are errors.
 
-		/* Initialize struct for next msg from PC to gateway */
-		PC_msg_initg(&pctogateway);	
+
 	}
 	return p;
 }
@@ -187,11 +194,14 @@ struct CANRCVBUF* msg_get(void)
  * void msg_out_mc(struct CANRCVBUF* p);
  * @brief	: Output msg from MC to CAN and USB
  * ************************************************************************************** */
+extern int debug_mc_state1;
+
 void msg_out_mc(struct CANRCVBUF* p)
 {
 #ifdef GATEWAYLOCAL
 	msg_out_usb(p);
 #endif
+	xprintf(UXPRT,"X%08X %03d\n\r",p->id, debug_mc_state1);
 	msg_out_can(p);
 	return;
 }

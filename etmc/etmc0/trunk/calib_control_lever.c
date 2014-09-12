@@ -50,7 +50,7 @@ void calib_control_lever(struct ETMCVAR* petmcvar)
 	char vv[128];
 
 	xprintf (UXPRT,"\nBegin control lever calibration\n\r");
-	
+return;
 	// dummy read of SPI switches to deal with false 0000 initially returned
 	spi2_rw(petmcvar->spi_ledout, petmcvar->spi_swin, SPI2SIZE);
 	while(clcalstate < 6)
@@ -100,7 +100,8 @@ void calib_control_lever(struct ETMCVAR* petmcvar)
 					case 3:	//	wating for return to rest first time
 					{
 						if (sw & CLREST) break; 
-						clcalstate = 4;
+						// clcalstate = 4;
+						clcalstate = 6;		//	only requires 1 cycle
 						sprintf(vv, "twice: 1  ");
 						lcd_printToLine(UARTLCD, 1, vv);
 						single_beep();
@@ -118,7 +119,6 @@ void calib_control_lever(struct ETMCVAR* petmcvar)
 					{
 						if (sw & CLREST) break;
 						fpclscale = 1.0 / (clmax - cloffset);
-						lcd_clear(UARTLCD);
 						single_beep();
 						clcalstate = 6; 
 					}
@@ -128,6 +128,7 @@ void calib_control_lever(struct ETMCVAR* petmcvar)
 			t_led += FLASHCOUNT; 	// Set next toggle time		
 		}
 	}	
+	lcd_clear(UARTLCD);
 	xprintf(UXPRT, "  cloffset: %10d clmax: %10d \n\r", cloffset, clmax);
 	xprintf 	(UXPRT, "   Control Lever Initial Calibration Complete\n\r");
 	return;

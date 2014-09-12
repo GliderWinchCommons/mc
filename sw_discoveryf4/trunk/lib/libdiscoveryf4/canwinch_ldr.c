@@ -721,7 +721,7 @@ u32 can_terr = 0; 	// Count of TERR flags
 
 void CAN1_TX_IRQHandler(void)
 {
-	int temp;
+	__attribute__ ((unused)) int temp;
 //while (1==1);
 	CAN_TSR(CAN1) = (CAN_TSR_RQCP1 | CAN_TSR_RQCP2);	// JIC mbx 2 & 3 have a flag
 
@@ -756,7 +756,7 @@ X   Reception of a new message, FMP0 bits in the CAN_RF0R register are not ‘00
 –   FIFO0 overrun condition, FOVR0 bit in the CAN_RF0R register set. */
 void CAN1_RX0_IRQHandler(void)
 {
-	int temp;
+	__attribute__ ((unused)) int temp;
 //while(1==1);
 	/* Save message in a circular buffer */
 	canbuf[canbufIDXi].id     = CAN_RI0R(CAN1);	// ID, RTR, IDE
@@ -794,7 +794,7 @@ X   Reception of a new message, FMP1 bits in the CAN_RF1R register are not ‘00
 –   FIFO1 overrun condition, FOVR1 bit in the CAN_RF1R register set. */
 void CAN1_RX1_IRQHandler(void)
 { // Here, FMP1 bits are not 00.
-	int temp;
+	__attribute__ ((unused)) int temp;
 //while(1==1);
 	fifo1cycnt = *(volatile unsigned int *)0xE0001004; // DWT_CYCNT
 	fifo1msgflg += 1;

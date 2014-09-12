@@ -248,10 +248,10 @@ static int adc_mc_init(void)
 	f4gpiopins_Config ((volatile u32*)GPIOC, 4, (struct PINCONFIG*)&inputadc);
 
 	/* Find prescalar divider code for the highest permitted ADC freq (which is 30 MHz) (typical) */
-	unsigned char ucPrescalar = 0;			// Division by 2	
-	if ((pclk2_freq/8) < 30000000) ucPrescalar = 3;	// Division by 8
-	if ((pclk2_freq/6) < 30000000) ucPrescalar = 2;	// Division by 6
-	if ((pclk2_freq/4) < 30000000) ucPrescalar = 1;	// Division by 4
+//	unsigned char ucPrescalar = 0;			// Division by 2	
+//	if ((pclk2_freq/8) < 30000000) ucPrescalar = 3;	// Division by 8
+//	if ((pclk2_freq/6) < 30000000) ucPrescalar = 2;	// Division by 6
+//	if ((pclk2_freq/4) < 30000000) ucPrescalar = 1;	// Division by 4
 
 	/* Enable bus clocking for ADC */
 	RCC_APB2ENR |= (1<<8);	// Enable ADC1 clocking (see p 104)
@@ -293,7 +293,7 @@ static int adc_mc_init(void)
  *####################################################################################### */
 void DMA2_MC_IRQHandler(volatile u32* p)
 {
-	volatile u32 tmp;
+	__attribute__ ((unused)) u32 tmp;
 	p = p; // Pointer is not used; this is to avoid compiler warning
 
 	/* Include code appropriate for the high or low register */

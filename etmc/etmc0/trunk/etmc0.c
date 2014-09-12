@@ -42,13 +42,14 @@
 #include "spi2rw.h"
 #include "mccp.h"
 #include "common_canid_et.h"
-#include "mc_msgs.h"
 #include "init_hardware_mc.h"
 #include "calib_control_lever.h"
 #include "beep_n_lcd.h"
-
-#include "etmc0.h"
 #include "mc_state.h"
+#include "mc_msgs.h"
+#include "etmc0.h"
+#include "CAN_error_msgs.h"
+
 
 // State machine
 int currentState = 0;
@@ -84,6 +85,7 @@ u32	t_spi;
  * void timeKeeper(void);
  * @brief	: function to find the 64th second beats
  * ************************************************************************************** */
+/*
 void timeKeeper (void)
 	{
 		struct CANRCVBUF can;
@@ -107,6 +109,7 @@ void timeKeeper (void)
 			etmcvar.timeCount = +1;
 		}
 	}
+*/
 /* **************************************************************************************
  * void spiInOut(void);
  * @brief	: SPI send/rcv & pacing 
@@ -184,7 +187,7 @@ int main(void)
 		/* Check for incoming CAN format msgs.  */
 		if ((pmc = msg_get()) != NULL)	// Any buffered?
 		{ 	// Here yes.  pmc points to msg struct
-			mc_state_msg_select(pmc, &etmcvar);	// Select msgs needed for MC
+			mc_state_msg_select(pmc);	// Select msgs needed for MC
 //xprintf(UXPRT,"U %d %08X\n\r",U++, pmc->id );
 		}
 
@@ -196,6 +199,10 @@ int main(void)
 
 		/* Output data to LCD periodically */
 		mc_state_lcd_poll(&etmcvar);	// Output LCD (paced)
+
+		/* Output msg error counter periodically */
+		CAN_error_msg_poll(UXPRT);
+
 	}
 	return 0;	
 }

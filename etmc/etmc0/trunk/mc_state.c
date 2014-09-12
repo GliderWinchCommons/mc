@@ -5,6 +5,7 @@
 * Description        : ET state machine for etmc0.c
 *******************************************************************************/
 #include "etmc0.h"
+#include "mc_msgs.h"
 #include "common_canid_et.h"
 
 #include "xprintf.h"
@@ -17,6 +18,12 @@
 #include "4x20lcd.h"
 
 #define PI 3.14159265358979323
+
+/* DEBUG */
+int debug_mc_state1; // frac time
+u32 debug_mc_state2; // delay time
+int debug_mc_state3; // max delay
+
 
 // lcd
 u32 t_lcd;
@@ -117,6 +124,7 @@ struct MCSTATEVAR
     int paramReceivedFlag;
     int parametersRequestedFlag;
     int launchResetFlag;
+    u32 elapsedTics;
     int startProfileTics;
     int startRampTics;
     float startRampTension;
@@ -133,7 +141,7 @@ struct MCRCVDCANMSG
 {
 	struct CANRCVBUF can;	// Msg
 	unsigned int dtw;	    // DTW count  
-	int flag;		        
+	int frac;		        
 
 };
 
@@ -160,11 +168,10 @@ static struct MCMSGSUSED msgsused;
  * ************************************************************************************** */
 static void mc_state_msgs_init(struct MCMSGSUSED* pmsgsused)
 {
-	pmsgsused->lastrcvdTension.flag = 0; 	// CANID_TENSION
-	pmsgsused->lastrcvdMotorSpeed.flag = 0; 	// CANID_MOTOR_SPEED
-	pmsgsused->lastrcvdCableAngle.flag = 0;	// CABLE_ANGLE_MESSAGE_ID
-	pmsgsused->lastrcvdLaunchParam.flag = 0;	// CANID_LAUNCH_PARAM
-
+	pmsgsused->lastrcvdTension.frac = 0; 	// CANID_TENSION
+	pmsgsused->lastrcvdMotorSpeed.frac = 0; 	// CANID_MOTOR_SPEED
+	pmsgsused->lastrcvdCableAngle.frac = 0;	// CABLE_ANGLE_MESSAGE_ID
+	pmsgsused->lastrcvdLaunchParam.frac = 0;	// CANID_LAUNCH_PARAM
 	return;
 }
 /* **************************************************************************************
@@ -282,7 +289,7 @@ void mc_state_init(struct ETMCVAR* petmcvar)
     simulationvar.nextStepTime = DTWTIME;
     #endif
     petmcvar->fracTime = stateparam.TICSPERSECOND - 1;
-    petmcvar->elapsedTics = -1;
+    statevar.elapsedTics = -1;
 	
     mc_state_launch_init();
 	
@@ -314,41 +321,49 @@ unsigned int msgrcvlist = 0;	// Accumulate msgs received after sending a time ms
 #define RCV_CANID_MOTOR		    0x4
 #define RCV_CANID_LAUNCH_PARAM	0x8
 
-void mc_state_msg_select(struct CANRCVBUF* pcan, u32 elspTics)
+void mc_state_msg_select(struct CANRCVBUF* pcan)
 {
 	switch (pcan->id)
-	{	
+	{
 	case CANID_TENSION:		 // 0x38000000	 448 
+if ( (int)(DTWTIME - debug_mc_state2) > debug_mc_state3) debug_mc_state3 = (DTWTIME - debug_mc_state2);
+xprintf(UXPRT,"T %d %d\n\r",(DTWTIME - debug_mc_state2),debug_mc_state3 );
+
 		msgsused.lastrcvdTension.can = *pcan;
-		msgsused.lastrcvdTension.flag += 1;
+msgsused.lastrcvdTension.frac = debug_mc_state1;
 		measurements.lastTension = ((float)pcan->cd.us[0] - scaleoffset.tensionOffset) * scaleoffset.tensionScale;
 		statevar.tensionMessageFlag = 1;
-        msgrcvlist |= RCV_CANID_TENSION;
+   	     	msgrcvlist |= RCV_CANID_TENSION;
+xprintf(UXPRT,"R%08X %03d %03d\n\r", pcan->id, debug_mc_state1,pcan->cd.uc[3]);
+
 		break;
-	case CANID_CABLE_ANGLE:	// 0x3A000000	 464 
+	case CANID_CABLE_ANGLE:		// 0x3A000000	 464 
 		msgsused.lastrcvdCableAngle.can = *pcan;
                 measurements.lastCableAngle = ((float)pcan->cd.uc[0] - scaleoffset.cableAngleOffset) * scaleoffset.cableAngleScale;
                 if (statevar.taperFlag == 0 && measurements.lastCableAngle > stateparam.TAPERANGLETRIG)
                 {
                 	statevar.taperFlag = 1;
-                	statevar.taperTics = elspTics;
+                	statevar.taperTics = statevar.elapsedTics;
                 }
-		msgsused.lastrcvdCableAngle.flag += 1;
+msgsused.lastrcvdCableAngle.frac = debug_mc_state1;
 		msgrcvlist |= RCV_CANID_CABLE_ANGLE;
+xprintf(UXPRT,"R%08X %03d %03d\n\r", pcan->id, debug_mc_state1,pcan->cd.uc[2]);
 		break;
 	case CANID_MOTOR_SPEED:		// 0x25000000	 296 
 		msgsused.lastrcvdMotorSpeed.can = *pcan;
 		measurements.lastMotorSpeed = (float)pcan->cd.us[0] * scaleoffset.motorSpeedScale;
 		measurements.lastCableSpeed = (float) (2 * 3.14159 * scaleoffset.drumRadius * measurements.lastMotorSpeed / scaleoffset.motorToDrum);
-		msgsused.lastrcvdMotorSpeed.flag += 1;
-        statevar.speedMessageFlag = 1;
+msgsused.lastrcvdMotorSpeed.frac = debug_mc_state1;
+       		statevar.speedMessageFlag = 1;
 		msgrcvlist |= RCV_CANID_MOTOR;
+xprintf(UXPRT,"R%08X %03d %03d\n\r", pcan->id, debug_mc_state1,pcan->cd.uc[6]);
 		break;
 	case CANID_LAUNCH_PARAM:	// 0x28E00000	 327 
 		msgsused.lastrcvdLaunchParam.can = *pcan;
-		msgsused.lastrcvdLaunchParam.flag += 1;
-        statevar.paramReceivedFlag = 1;
+msgsused.lastrcvdLaunchParam.frac = debug_mc_state1;
+        	statevar.paramReceivedFlag = 1;
 		msgrcvlist |= CANID_LAUNCH_PARAM;
+xprintf(UXPRT,"R%08X %03d %03d\n\r", pcan->id, debug_mc_state1,pcan->cd.uc[0]);
 		break;
 	}
 	return;
@@ -403,7 +418,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
         //&& (statevar.tensionMessageFlag == 1) 
         //&& (statevar.speedMessageFlag == 1))
         {
-            (petmcvar->elapsedTics)++;
+            (statevar.elapsedTics)++;
             can.id = CANID_TIME;    // time id
             if (++(petmcvar->fracTime) != stateparam.TICSPERSECOND)
             {
@@ -418,6 +433,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
                 petmcvar->fracTime = 0;
             }            
             msg_out_mc(&can); // output to CAN+USB
+debug_mc_state1 = petmcvar->fracTime;
             // next on time Time message time                   
             simulationvar.nextStepTime  += stateparam.STEPTIMECLOCKS;
         }
@@ -426,7 +442,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
             //&& (statevar.tensionMessageFlag == 1) 
             //&& (statevar.speedMessageFlag == 1))
         {
-            (petmcvar->elapsedTics)++;
+            (statevar.elapsedTics)++;
             can.id = CANID_TIME;    // time id
             if (++(petmcvar->fracTime) != stateparam.TICSPERSECOND)
             {
@@ -440,20 +456,25 @@ void stateMachine(struct ETMCVAR* petmcvar)
                 can.cd.uc[4] = (u8) 0;    //  status proxy
                 petmcvar->fracTime = 0;
             }            
+debug_mc_state1 = petmcvar->fracTime;
             msg_out_mc(&can); // output to CAN+USB
+debug_mc_state2 = DTWTIME; // Time round trip to PS
             // next on time Time message time                   
             simulationvar.nextStepTime  += stateparam.STEPTIMECLOCKS;
 
-            // dummy control lever messages to flush buffer
-            can.id = CANID_CONTROL_LEVER;
-            can.dlc = 0;        
-            for (int i = 1; i < 6; i++)
-            {
-                msg_out_mc(&can);
-            }    
-        } 
-        #endif
 
+// dummy control lever messages to flush buffer
+can.id = CANID_CONTROL_LEVER;
+can.dlc = 0;
+can.dlc = 8; // Max size
+can.cd.uc[0] = debug_mc_state1;    //  for debug        
+for (int i = 0; i < 0; i++)
+{
+	msg_out_mc(&can);
+
+}    
+	} 
+        #endif
         
         
     switch (statevar.state)
@@ -474,7 +495,8 @@ void stateMachine(struct ETMCVAR* petmcvar)
             {
                 // request launch parameters
             	can.id = CANID_PARAM_REQUEST;
-            	can.dlc = 0;
+can.cd.uc[0] = debug_mc_state1;    //  for debug
+            	can.dlc = 0 + 1;
             	msg_out_mc(&can);
                 statevar.parametersRequestedFlag = 1;
             }
@@ -491,13 +513,13 @@ void stateMachine(struct ETMCVAR* petmcvar)
                 
                 statevar.state = 2;
                 // setStateled(2); 	// LED ???
-                statevar.startProfileTics = petmcvar->elapsedTics;
+                statevar.startProfileTics = statevar.elapsedTics;
                 sendStateMessage(3);
                 mc_debug_print();
             }
             break;
         case 2: // profile 1   soft start
-            if ((petmcvar->elapsedTics - statevar.startProfileTics) 
+            if ((statevar.elapsedTics - statevar.startProfileTics) 
                 >= (stateparam.SOFT_START_TIME * stateparam.TICSPERSECOND))
             {
                 statevar.state = 3;
@@ -511,7 +533,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
             if (measurements.lastCableSpeed < (statevar.peakCableSpeed * stateparam.PEAK_CABLE_SPEED_DROP))
             {
                 statevar.state = 4;
-                statevar.startRampTics = petmcvar->elapsedTics;
+                statevar.startRampTics = statevar.elapsedTics;
                 statevar.startRampTension = measurements.lastTension;
                 sendStateMessage(4);
                 // setStateled(4);
@@ -519,7 +541,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
             }
             break;
         case 4: // ramp
-            if (petmcvar->elapsedTics - statevar.startRampTics > stateparam.RAMP_TIME * stateparam.TICSPERSECOND)
+            if (statevar.elapsedTics - statevar.startRampTics > stateparam.RAMP_TIME * stateparam.TICSPERSECOND)
             {
                 statevar.state = 5;
                 // setStateled(5);
@@ -570,7 +592,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
                 break;
             case 2: // profile 1   soft start
                 statevar.setptTension = (float) (stateparam.GROUND_TENSION_FACTOR * stateparam.GLIDER_WEIGHT
-                * 0.5  * (1 - cosf(stateparam.K1 * (petmcvar->elapsedTics - statevar.startProfileTics))));
+                * 0.5  * (1 - cosf(stateparam.K1 * (statevar.elapsedTics - statevar.startProfileTics))));
                 break;
 
             case 3: // profile 2   constant tension ground roll with taper
@@ -590,7 +612,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
                 statevar.setptTension = (float) ((statevar.startRampTension
                         + (stateparam.CLIMB_TENSION_FACTOR * stateparam.GLIDER_WEIGHT
                         - statevar.startRampTension)
-                        * sinf(stateparam.K3 * (petmcvar->elapsedTics - statevar.startRampTics))));
+                        * sinf(stateparam.K3 * (statevar.elapsedTics - statevar.startRampTics))));
                 //xprintf(UXPRT,"%6d\n\r", (double) statevar.setptTension);	//  System.out.println(tension);
                 break;
             case 5: // constant
@@ -598,7 +620,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
                 if (statevar.taperFlag == 1)
                 {
                     statevar.setptTension *= 0.4 + 0.6 * 0.5
-                            * (1 + cosf(stateparam.K4 * (petmcvar->elapsedTics - statevar.taperTics)));
+                            * (1 + cosf(stateparam.K4 * (statevar.elapsedTics - statevar.taperTics)));
                 }
                 break;
             case 6: // recovery
@@ -611,7 +633,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
                 break;            
         }
         //  scale by control lever
-        statevar.setptTension *= calib_control_lever_get(); 
+        //statevar.setptTension *= calib_control_lever_get();   //  comment out to not have to hold handle
 
         //  filter the torque with about 1 Hz bandwidth
         statevar.setptTorque = statevar.setptTension * stateparam.TENSION_TO_TORQUE; 
@@ -620,7 +642,8 @@ void stateMachine(struct ETMCVAR* petmcvar)
 
         // torqueMessage.set_short((short) (statevar.filt_torque / scaleoffset.torqueScale), 0); // torque
      	can.id = CANID_TORQUE;
-        can.dlc = 2;
+        can.dlc = 2 + 1;
+can.cd.uc[2] = debug_mc_state1;    //  for debug
         can.cd.us[0] = (short) (statevar.filt_torque / scaleoffset.torqueScale);
         msg_out_mc(&can);
         statevar.tensionMessageFlag = statevar.speedMessageFlag = 0;

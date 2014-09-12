@@ -34,6 +34,10 @@ void Errors_misc(int x);
 /* @brief	: Count errors
  * @param	: Subroutine return for "one-off" counts
  * ************************************************************************************** */
+void CAN_error_msg_poll(int uxprt);
+/* @brief	: Periodically print error counters
+ * @param	: uxprt = serial port number (1-6)
+ * ************************************************************************************** */
 
 #endif 
 
