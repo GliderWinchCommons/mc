@@ -44,7 +44,7 @@ static void echo_test(void)
 	int _read(int, char *, int);
 	int _write(int, char *, int);
 	char mybuf[100];
-	int i;
+	__attribute__ ((unused)) int i;
 	
 	for(i=0; 1==1; i+=1)
 	{
@@ -82,7 +82,7 @@ static void calculation_test()
 
 		printf("Time:  %lu ms\n\r", time_var2);
 		printf("Pass:  %i\n\r", pass);
-		printf("Value: %.5f\n\r", a);
+		printf("Value: %.5f\n\r", (double)a);
 		printf("exp(pi) - pi == %23.20f\r\n", exp(pi) - pi);
 		printf("\r\n");
 	}
@@ -92,14 +92,15 @@ static void speed_test()
 {
 	char c;
 	char* tmsg = "0123456789ABCDEFGHIJKLMNOQRSTUVWXYabcedefhijklmnopqrstluvwxyz 0123456789ABCDEFGHIJKLMNOQRSTUVWXYabcedefhijklmnopqrstluvwxyz\n\r";
-	volatile unsigned int i;
+	__attribute__ ((unused)) volatile unsigned int i;
 	unsigned int j = 0;
 	*(volatile unsigned int*)0xE000EDFC |= 0x01000000; // SCB_DEMCR = 0x01000000;
 	*(volatile unsigned int*)0xE0001000 |= 0x1;	// Enable DTW_CYCCNT (Data Watch cycle counter)
 	unsigned int t_old = *(volatile unsigned int *)0xE0001004; // DWT_CYCNT
 	unsigned int t_dif;
 	unsigned int t_new;
-	unsigned int t_d0,t_d1;
+	unsigned int t_d0 = *(volatile unsigned int *)0xE0001004;
+	unsigned int t_d1 = *(volatile unsigned int *)0xE0001004;
 
 	while (1)
 	{

@@ -89,8 +89,8 @@ static void canmcbuf_add(struct CANRCVBUF* p)
  * ************************************************************************************** */
 static void msg_out_usb(struct CANRCVBUF* p)
 {
-	pctogateway.cmprs.seq = canmsgctr++;		// Add sequence number (for PC checking for missing msgs)
-	USB_toPC_msg_mode(STDOUT_FILENO, &pctogateway, p); 	// Send to PC via STDOUT
+	gatewayToPC.cmprs.seq = canmsgctr++;		// Add sequence number (for PC checking for missing msgs)
+	USB_toPC_msg_mode(STDOUT_FILENO, &gatewayToPC, p); 	// Send to PC via STDOUT
 	return;
 }
 /* **************************************************************************************
