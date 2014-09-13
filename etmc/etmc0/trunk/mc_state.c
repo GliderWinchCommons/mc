@@ -223,7 +223,7 @@ void mc_state_init(struct ETMCVAR* petmcvar)
 // struct MCSTATEPARAM
     //  these should not need re-initialization
 
-    stateparam.TICSPERSECOND = 24;
+    stateparam.TICSPERSECOND = 16;
     stateparam.STEPTIME = ((float) 1.0) / stateparam.TICSPERSECOND;
     stateparam.REALTIMEFACTOR = ((float) 1.0);
 
@@ -468,7 +468,7 @@ can.id = CANID_CONTROL_LEVER;
 can.dlc = 0;
 can.dlc = 8; // Max size
 can.cd.uc[0] = debug_mc_state1;    //  for debug        
-for (int i = 0; i < 0; i++)
+for (int i = 0; i < 3; i++)
 {
 	msg_out_mc(&can);
 
