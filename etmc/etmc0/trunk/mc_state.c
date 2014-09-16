@@ -16,6 +16,7 @@
 #include "calib_control_lever.h"
 #include "clockspecifysetup.h"
 #include "4x20lcd.h"
+#include "beep_n_lcd.h"
 
 #define PI 3.14159265358979323
 
@@ -23,6 +24,11 @@
 int debug_mc_state1; // frac time
 u32 debug_mc_state2; // delay time
 int debug_mc_state3; // max delay
+
+
+//  CP Switches
+int cpsw = 0;
+#define CPARM 1 << 13
 
 
 // lcd
@@ -289,6 +295,7 @@ void mc_state_init(struct ETMCVAR* petmcvar)
     simulationvar.nextStepTime = DTWTIME;
     #endif
     petmcvar->fracTime = stateparam.TICSPERSECOND - 1;
+    petmcvar->ledBlink = 0xffff;
     statevar.elapsedTics = -1;
 	
     mc_state_launch_init();
@@ -468,20 +475,25 @@ can.id = CANID_CONTROL_LEVER;
 can.dlc = 0;
 can.dlc = 8; // Max size
 can.cd.uc[0] = debug_mc_state1;    //  for debug        
-for (int i = 0; i < 3; i++)
+for (int i = 0; i < 0; i++)
 {
 	msg_out_mc(&can);
 
 }    
 	} 
         #endif
-        
-        
+
+    //  this needs to be moved into  SPIInOut()
+    //  convert to a binary word for comparisons (not general for different SPI2SIZE)
+    cpsw = (((int) petmcvar->spi_swin[0]) << 8) | (int) petmcvar->spi_swin[1];
+            
     switch (statevar.state)
     {
         case 0: // prep                        
             //  This will be replaced with detection of pushing the ARM button
-            if (calib_control_lever_get() < (float) 0.05)
+            //  if (calib_control_lever_get() < (float) 0.05)
+        petmcvar->spi_ledout[1] = 0x01;
+        if((cpsw & CPARM) == 0)
             { 
                 statevar.state = 1; // going to armed state
                 // setStateled(1);	// ??? LED
@@ -490,6 +502,7 @@ for (int i = 0; i < 3; i++)
             }
             break;
         case 1: // armed            
+            petmcvar->spi_ledout[1] = 0x01 & petmcvar->ledBlink;
             if ((statevar.parametersRequestedFlag == 0) 
                     && (calib_control_lever_get() > (float) 0.95))
             {
@@ -512,7 +525,9 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
             //    simulationvar.startTime = (double) DTWTIME; // not used?
                 
                 statevar.state = 2;
+                single_beep();
                 // setStateled(2); 	// LED ???
+                petmcvar->spi_ledout[1] = 0x00;
                 statevar.startProfileTics = statevar.elapsedTics;
                 sendStateMessage(3);
                 mc_debug_print();
@@ -535,6 +550,7 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
                 statevar.state = 4;
                 statevar.startRampTics = statevar.elapsedTics;
                 statevar.startRampTension = measurements.lastTension;
+                single_beep();
                 sendStateMessage(4);
                 // setStateled(4);
                 mc_debug_print();
@@ -545,6 +561,7 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
             {
                 statevar.state = 5;
                 // setStateled(5);
+                single_beep();
                 sendStateMessage(5);
                 statevar.minCableSpeed = measurements.lastCableSpeed;
                 mc_debug_print();
@@ -559,6 +576,7 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
             }
             if (measurements.lastCableSpeed > statevar.minCableSpeed + stateparam.RELEASEDELTA)
             {
+                single_beep();
                 statevar.state = 6;
                 // setStateled(6);
                 sendStateMessage(6);
@@ -570,6 +588,7 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
             if (measurements.lastCableSpeed < stateparam.ZERO_CABLE_SPEED_TOLERANCE)
             {
                 statevar.state = 0;
+                single_beep();
                 // setStateled(0);
                 sendStateMessage(1);
                 mc_debug_print();

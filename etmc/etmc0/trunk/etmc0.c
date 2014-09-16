@@ -73,10 +73,12 @@ u32	t_spi;
  * void ledHeartbeat(void);
  * @brief	: Flash the red LED to amuse the hapless Op or signal the wizard programmer that the loop is running.
  * ************************************************************************************** */
-	void ledHeartbeat (void) {
+	void ledHeartbeat (struct ETMCVAR* petmcvar) 
+	{
 		if (((int)(DTWTIME - t_led)) > 0) // Has the time expired?
 		{ // Here, yes.
 			t_led += FLASHCOUNT; 	// Set next toggle time
+			petmcvar->ledBlink ^= 0xffff;
 			toggle_4leds(); 	// Advance some LED pattern
 		}
 	}
@@ -158,6 +160,7 @@ int main(void)
 	/* --------------------- Initial times ---------------------------------------------------------------------------- */
 	t_led        = DTWTIME + FLASHCOUNT; 
 	t_timeKeeper = DTWTIME + SIXTYFOURTH;
+	t_spi = DTWTIME + SPIPACE;
 	
 	t_loop0 = DTWTIME;
 	t_loop9 = DTWTIME + sysclk_freq; 	// 1 sec time
@@ -179,7 +182,7 @@ int main(void)
 		}
 		t_loop0 = DTWTIME;
 
-		ledHeartbeat();	// LED pattern to show processor is alive
+		ledHeartbeat(&etmcvar);	// LED pattern to show processor is alive
 
 		//	time keeping is temporarily being performed in mc_state.c
 		//	timeKeeper();	// 

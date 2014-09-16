@@ -112,7 +112,7 @@ void init_hardware_mc (void)
 		//setbuf(stdout, NULL);
 	/* --------------------- Initialize UARTs ---------------------------------------------------- */
 	    //  bsp_uart_int_init_number(u32 uartnumber, u32 baud,u32 rxbuffsize, u32 txbuffsize, u32 dma_tx_int_priority);
-		bsp_uart_int_init_number(UARTGATE, 230400, 256, 256, 0x40);	// UART used for the Gateway
+		bsp_uart_int_init_number(UARTGATE, 230400, 1024, 1024, 0x40);	// UART used for the Gateway
 		bsp_uart_int_init_number(UXPRT,    115200, 256, 256, 0xB0);	// UART used for debugging		
 		
 		lcd_init(UARTLCD); 						// UART used for the LCD screen

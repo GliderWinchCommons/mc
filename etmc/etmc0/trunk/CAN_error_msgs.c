@@ -53,7 +53,7 @@ u32 err_ctrs[TOTALERRCTSIZE];
  * ************************************************************************************** */
 void Errors_USB_PC_get_msg_mode(int x)
 {
-	if ( x > 0 ) return; // Expect negative numbers
+	if ( x >= 0 ) return; // Expect negative numbers
 	x = -(1 + x); // Make -1 to -n run 0 to + (n-1), i.e an index
 	if (x >= FIRSTGROUPSIZE) return; // Assure it is in range.
 	err_ctrs[x] += 1;	// Add to error count
@@ -66,7 +66,7 @@ void Errors_USB_PC_get_msg_mode(int x)
  * ************************************************************************************** */
 void Errors_CAN_gateway_send(int x)
 {
-	if ( x > 0 ) return; // Expect negative numbers
+	if ( x >= 0 ) return; // Expect negative numbers
 	x = -(1 + x);
 	if ( x >= SECONDGROUPSIZE)  return;
 	err_ctrs[x + FIRSTGROUPSIZE] += 1;
@@ -79,7 +79,7 @@ void Errors_CAN_gateway_send(int x)
  * ************************************************************************************** */
 void Errors_misc(int x)
 {
-	if ( x > 0 ) return; // Expect negative numbers
+	if ( x >= 0 ) return; // Expect negative numbers
 	x = -(1 + x);
 	if ( x >= THIRDGROUPSIZE)  return;
 	err_ctrs[x + (FIRSTGROUPSIZE + SECONDGROUPSIZE) - 1 ] += 1;

@@ -23,6 +23,7 @@ struct ETMCVAR
 	char spi_swin[SPI2SIZE];
 	u8 fracTime; 	
 	u32 unixtime;
+	int ledBlink;
 	//	not used but referenced in timekeeper
 	u8 count64;	
 	int timeCount;
