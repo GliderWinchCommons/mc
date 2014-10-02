@@ -99,8 +99,8 @@ void calib_control_lever(struct ETMCVAR* petmcvar)
 					case 3:	//	wating for return to rest first time
 					{
 						if (sw & CLREST) break; 
-						// clcalstate = 4;
-						clcalstate = 6;		//	only requires 1 cycle
+						clcalstate = 4;
+						// clcalstate = 6;		//	only requires 1 cycle
 						sprintf(vv, "twice: 1  ");
 						lcd_printToLine(UARTLCD, 1, vv);
 						single_beep();

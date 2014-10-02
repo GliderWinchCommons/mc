@@ -652,7 +652,7 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
                 break;            
         }
         //  scale by control lever
-        //statevar.setptTension *= calib_control_lever_get();   //  comment out to not have to hold handle
+        statevar.setptTension *= calib_control_lever_get();   //  comment out to not have to hold handle
 
         //  filter the torque with about 1 Hz bandwidth
         statevar.setptTorque = statevar.setptTension * stateparam.TENSION_TO_TORQUE; 
