@@ -167,7 +167,8 @@ int main(void)
 
 	//	intialize beeper variables
 	etmcvar.beep_count = 0;
-	etmcvar.beep state = 0;
+	etmcvar.beep_state = 0;
+
 /* --------------------- Endless Polling Loop ----------------------------------------------- */
 	while (1==1)
 	{

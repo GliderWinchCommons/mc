@@ -27,7 +27,7 @@ struct ETMCVAR
 	//	beep variables
 	int beep_count;
 	int beep_state;
-	unsigned int beep_timne;
+	unsigned int beep_time;
 	//	not used but referenced in timekeeper
 	u8 count64;	
 	int timeCount;

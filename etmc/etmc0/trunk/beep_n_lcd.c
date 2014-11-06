@@ -17,6 +17,7 @@
 #include "mc_msgs.h"
 #include "libopencm3/stm32/f4/gpio.h"
 #include "init_hardware_mc.h"
+#include "etmc0.h"
 
 
 
@@ -53,6 +54,8 @@ void delay_tenth_sec(unsigned int t)
  * void triple_beep(void);	// Three beeps
 ***************************************************************/
 //Old blocking beeper functionsfunctions
+
+
 void single_beep(void)
 {
 	GPIO_BSRR(GPIOA) = 1 << 8;	// Turn on beeper
@@ -73,7 +76,8 @@ void triple_beep(void)
 	single_beep();
 }
 
-//	New non-blocking beep funtions
+
+//	non-blocking beep funtions
 void beep_n(int n, struct ETMCVAR* petmcvar)
 {
 	petmcvar->beep_count += n;
@@ -87,7 +91,7 @@ void beep_poll(struct ETMCVAR* petmcvar)
 *	beeping	1
 *	delay 	2
 */
-	switch (beep_state)
+	switch(petmcvar->beep_state)
 	{
 		case 0:	//	idle
 		{
@@ -101,7 +105,7 @@ void beep_poll(struct ETMCVAR* petmcvar)
 		}
 		case 1:	//	beeping
 		{
-			if (((int)(DTWTIME - beep_time) > 0))
+			if (((int)(DTWTIME - petmcvar->beep_time) > 0))
 			{
 				petmcvar->beep_time = DTWTIME + sysclk_freq/5;	//	delay for 1/5 second
 				GPIO_BSRR(GPIOA) = 1 << (8 + 16);	// Turn off beeper
@@ -111,7 +115,7 @@ void beep_poll(struct ETMCVAR* petmcvar)
 		}
 		case 2:	//	delay following beep;
 		{
-			if (((int)(DTWTIME - beep_time) > 0))
+			if (((int)(DTWTIME - petmcvar->beep_time) > 0))
 			{
 				(petmcvar->beep_count)--;	//	if 0 will start next beep on next entry
 				petmcvar->beep_state = 0;

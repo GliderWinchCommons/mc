@@ -10,15 +10,18 @@
 
 #include "common_misc.h"
 #include "common_can.h"
+#include "etmc0.h"
 
 /* *********************************************************** */
 void delay_tenth_sec(unsigned int t);
 /* @brief	: Looping delay using DTW counter
  * @param	: t = number of 1/10th secs to delay
 ************************************************************** */
+
 void single_beep(void);	// One beep
 void double_beep(void);	// Two beeps
 void triple_beep(void);	// Three beeps
+
 
 void beep_n(int n, struct ETMCVAR* petmcvar);	//	n non-blocking beeps
 void beep_poll(struct ETMCVAR* petmcvar);		//	beep generator

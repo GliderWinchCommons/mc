@@ -123,7 +123,7 @@ void calib_control_lever(struct ETMCVAR* petmcvar)
 				}			
 			}
 			toggle_4leds(); 	// Advance some LED pattern
-			t_led += FLASHCOUNT; 	// Set next toggle time		
+			t_led += FLASHCOUNT; 	// Set next toggle time	
 		}
 	}	
 	fpclscale = 1.0 / (clmax - cloffset);

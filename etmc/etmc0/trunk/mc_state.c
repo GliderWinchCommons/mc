@@ -498,7 +498,7 @@ for (int i = 0; i < 0; i++)
                 statevar.state = 1; // going to armed state
                 // setStateled(1);	// ??? LED
                 sendStateMessage(2);
-                beep_n(1, &petmcvar);   //  single beep
+                beep_n(1, petmcvar);   //  single beep
                 mc_debug_print();
             }
             break;
@@ -526,7 +526,8 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
             //    simulationvar.startTime = (double) DTWTIME; // not used?
                 
                 statevar.state = 2;
-                single_beep();
+                beep_n(1, petmcvar);   //  single beep
+                // single_beep();
                 // setStateled(2); 	// LED ???
                 petmcvar->spi_ledout[1] = 0x00;
                 statevar.startProfileTics = statevar.elapsedTics;
@@ -551,7 +552,8 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
                 statevar.state = 4;
                 statevar.startRampTics = statevar.elapsedTics;
                 statevar.startRampTension = measurements.lastTension;
-                single_beep();
+                // single_beep();
+                beep_n(1, petmcvar);   //  single beep
                 sendStateMessage(4);
                 // setStateled(4);
                 mc_debug_print();
@@ -562,7 +564,8 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
             {
                 statevar.state = 5;
                 // setStateled(5);
-                single_beep();
+                beep_n(1, petmcvar);   //  single beep
+                // single_beep();
                 sendStateMessage(5);
                 statevar.minCableSpeed = measurements.lastCableSpeed;
                 mc_debug_print();
@@ -577,7 +580,8 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
             }
             if (measurements.lastCableSpeed > statevar.minCableSpeed + stateparam.RELEASEDELTA)
             {
-                single_beep();
+                beep_n(1, petmcvar);   //  single beep
+                // single_beep();
                 statevar.state = 6;
                 // setStateled(6);
                 sendStateMessage(6);
@@ -589,7 +593,8 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
             if (measurements.lastCableSpeed < stateparam.ZERO_CABLE_SPEED_TOLERANCE)
             {
                 statevar.state = 0;
-                single_beep();
+                beep_n(1, petmcvar);   //  single beep
+                // single_beep();
                 // setStateled(0);
                 sendStateMessage(1);
                 mc_debug_print();
