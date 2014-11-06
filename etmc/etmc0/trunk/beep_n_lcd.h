@@ -19,6 +19,9 @@ void delay_tenth_sec(unsigned int t);
 void single_beep(void);	// One beep
 void double_beep(void);	// Two beeps
 void triple_beep(void);	// Three beeps
+
+void beep_n(int n, struct ETMCVAR* petmcvar);	//	n non-blocking beeps
+void beep_poll(struct ETMCVAR* petmcvar);		//	beep generator
 /* *********************************************************** */
 void show_op_the_error(char* p, int e, unsigned int t);
 /* @brief	: Show Op the error, beep, and pause

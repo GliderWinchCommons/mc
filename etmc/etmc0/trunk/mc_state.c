@@ -498,6 +498,7 @@ for (int i = 0; i < 0; i++)
                 statevar.state = 1; // going to armed state
                 // setStateled(1);	// ??? LED
                 sendStateMessage(2);
+                beep_n(1, &petmcvar);   //  single beep
                 mc_debug_print();
             }
             break;

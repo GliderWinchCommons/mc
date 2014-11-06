@@ -52,6 +52,7 @@ void delay_tenth_sec(unsigned int t)
  * void double_beep(void);	// Two beeps
  * void triple_beep(void);	// Three beeps
 ***************************************************************/
+//Old blocking beeper functionsfunctions
 void single_beep(void)
 {
 	GPIO_BSRR(GPIOA) = 1 << 8;	// Turn on beeper
@@ -71,6 +72,55 @@ void triple_beep(void)
 	single_beep();
 	single_beep();
 }
+
+//	New non-blocking beep funtions
+void beep_n(int n, struct ETMCVAR* petmcvar)
+{
+	petmcvar->beep_count += n;
+	return;
+}
+
+void beep_poll(struct ETMCVAR* petmcvar)
+{
+/*	beep_state values
+*	idle	0
+*	beeping	1
+*	delay 	2
+*/
+	switch (beep_state)
+	{
+		case 0:	//	idle
+		{
+			if (petmcvar->beep_count != 0)
+			{
+				petmcvar->beep_time = DTWTIME + sysclk_freq/10;	//	beep for 1/10 second beep
+				GPIO_BSRR(GPIOA) = 1 << 8;	// Turn on beeper
+				petmcvar->beep_state = 1;
+			}				
+			break;
+		}
+		case 1:	//	beeping
+		{
+			if (((int)(DTWTIME - beep_time) > 0))
+			{
+				petmcvar->beep_time = DTWTIME + sysclk_freq/5;	//	delay for 1/5 second
+				GPIO_BSRR(GPIOA) = 1 << (8 + 16);	// Turn off beeper
+				petmcvar->beep_state = 2;
+			}
+			break;
+		}
+		case 2:	//	delay following beep;
+		{
+			if (((int)(DTWTIME - beep_time) > 0))
+			{
+				(petmcvar->beep_count)--;	//	if 0 will start next beep on next entry
+				petmcvar->beep_state = 0;
+			}
+		}
+		return;
+	}
+}
+
 /* ************************************************************
  * void show_op_the_error(char* p, int e, unsigned int t);
  * @brief	: Show Op the error, beep, and pause

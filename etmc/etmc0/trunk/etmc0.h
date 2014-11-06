@@ -24,6 +24,10 @@ struct ETMCVAR
 	u8 fracTime; 	
 	u32 unixtime;
 	int ledBlink;
+	//	beep variables
+	int beep_count;
+	int beep_state;
+	unsigned int beep_timne;
 	//	not used but referenced in timekeeper
 	u8 count64;	
 	int timeCount;

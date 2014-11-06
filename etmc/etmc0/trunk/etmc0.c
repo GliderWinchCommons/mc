@@ -164,6 +164,10 @@ int main(void)
 	
 	t_loop0 = DTWTIME;
 	t_loop9 = DTWTIME + sysclk_freq; 	// 1 sec time
+
+	//	intialize beeper variables
+	etmcvar.beep_count = 0;
+	etmcvar.beep state = 0;
 /* --------------------- Endless Polling Loop ----------------------------------------------- */
 	while (1==1)
 	{
@@ -202,6 +206,9 @@ int main(void)
 
 		/* Output data to LCD periodically */
 		mc_state_lcd_poll(&etmcvar);	// Output LCD (paced)
+
+		/*	Output beeps if commanded */
+		beep_poll(&etmcvar);
 
 		/* Output msg error counter periodically */
 		CAN_error_msg_poll(UXPRT);
