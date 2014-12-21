@@ -30,7 +30,7 @@ unsigned short spi2_busy(void);
 /* @brief	: Test if spi2 is busy
  * @return	: 0 = /CS line is low; not-zero (busy) = /CS line is high (not busy)
 *******************************************************************************/
-void spi2_rw (char *pout, char * pin, int count);
+void spi2_rw (char *pout, char *pin, int count);
 /* @brief	: Write and read bytes
  * @param	: char *pout = pointer to byte array with bytes to output
  * @param	: char *pin  = pointer to byte array to receive bytes coming in

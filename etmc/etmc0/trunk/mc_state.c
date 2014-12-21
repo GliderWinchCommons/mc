@@ -26,11 +26,6 @@ u32 debug_mc_state2; // delay time
 int debug_mc_state3; // max delay
 
 
-//  CP Switches
-int cpsw = 0;
-#define CPARM 1 << 13
-
-
 // lcd
 u32 t_lcd;
 #define LCDPACE (sysclk_freq/4) // LCD pacing increment
@@ -398,7 +393,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
     if (statevar.launchResetFlag == 1)   // init variables for launch
      {
         //  reset variables for next launch
-         statevar.state = 0;
+         statevar.state = 10;
          statevar.tensionMessageFlag = statevar.speedMessageFlag = 0;
          statevar.parametersRequestedFlag = 0;
          statevar.paramReceivedFlag = 0;
@@ -482,28 +477,60 @@ for (int i = 0; i < 0; i++)
 }    
 	} 
         #endif
-
-    //  this needs to be moved into  SPIInOut()
-    //  convert to a binary word for comparisons (not general for different SPI2SIZE)
-    cpsw = (((int) petmcvar->spi_swin[0]) << 8) | (int) petmcvar->spi_swin[1];
-            
+    
     switch (statevar.state)
     {
-        case 0: // prep                        
+        case 0: //  safe
+        petmcvar->cp_ledout = LED_SAFE;
+        if((petmcvar->cp_swin & SW_ACTIVE) == 0)
+        {
+            statevar.state = 10; // going to prep state
+            sendStateMessage(1);
+            beep_n(1, petmcvar);   //  single beep
+            mc_debug_print();
+        }
+        break;
+
+        case 10: // prep                        
             //  This will be replaced with detection of pushing the ARM button
             //  if (calib_control_lever_get() < (float) 0.05)
-        petmcvar->spi_ledout[1] = 0x01;
-        if((cpsw & CPARM) == 0)
+            
+            petmcvar->cp_ledout = (LED_PREP & petmcvar->ledBlink) | LED_ARM_PB | LED_PREP_PB;
+            if((petmcvar->cp_swin & SW_SAFE) == 0)
+            {
+                statevar.state = 0; // going to safe state
+                sendStateMessage(0);
+                beep_n(1, petmcvar);   //  single beep
+                mc_debug_print();
+                break;
+            }
+            if((petmcvar->cp_swin & PB_ARM) == 0)
             { 
-                statevar.state = 1; // going to armed state
-                // setStateled(1);	// ??? LED
+                statevar.state = 20; // going to armed state
                 sendStateMessage(2);
                 beep_n(1, petmcvar);   //  single beep
                 mc_debug_print();
             }
             break;
-        case 1: // armed            
-            petmcvar->spi_ledout[1] = 0x01 & petmcvar->ledBlink;
+
+        case 20: // armed            
+            petmcvar->cp_ledout = LED_ARM_PB | LED_PREP_PB | (LED_ARM & petmcvar->ledBlink);
+            if((petmcvar->cp_swin & SW_SAFE) == 0)
+            {
+                statevar.state = 0; // going to safe state
+                sendStateMessage(0);
+                beep_n(1, petmcvar);   //  single beep
+                mc_debug_print();
+                break;
+            }
+            if((petmcvar->cp_swin & PB_PREP) == 0)
+            {
+                statevar.state = 10; // going to prep state
+                sendStateMessage(1);
+                beep_n(1, petmcvar);   //  single beep
+                mc_debug_print();
+                break;
+            }
             if ((statevar.parametersRequestedFlag == 0) 
                     && (calib_control_lever_get() > (float) 0.95))
             {
@@ -524,56 +551,56 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
             if (statevar.paramReceivedFlag == 1)
             {
             //    simulationvar.startTime = (double) DTWTIME; // not used?
-                
-                statevar.state = 2;
+                statevar.state = 30;    // going to profile state
                 beep_n(1, petmcvar);   //  single beep
-                // single_beep();
-                // setStateled(2); 	// LED ???
-                petmcvar->spi_ledout[1] = 0x00;
                 statevar.startProfileTics = statevar.elapsedTics;
                 sendStateMessage(3);
                 mc_debug_print();
             }
             break;
-        case 2: // profile 1   soft start
+
+        case 30: // profile 0   soft start
+            petmcvar->cp_ledout = (LED_GNDRLRTN & petmcvar->ledBlink);
             if ((statevar.elapsedTics - statevar.startProfileTics) 
                 >= (stateparam.SOFT_START_TIME * stateparam.TICSPERSECOND))
             {
-                statevar.state = 3;
+                statevar.state = 31;
                 statevar.peakCableSpeed = measurements.lastCableSpeed;
                 mc_debug_print();
             }
             break;
-        case 3: // profile 2   constant tension ground roll
+
+        case 31: // profile 1   constant tension ground roll
+            petmcvar->cp_ledout = LED_GNDRLRTN & petmcvar->ledBlink;
             statevar.peakCableSpeed = measurements.lastCableSpeed > statevar.peakCableSpeed
                     ? measurements.lastCableSpeed : statevar.peakCableSpeed;
             if (measurements.lastCableSpeed < (statevar.peakCableSpeed * stateparam.PEAK_CABLE_SPEED_DROP))
             {
-                statevar.state = 4;
-                statevar.startRampTics = statevar.elapsedTics;
-                statevar.startRampTension = measurements.lastTension;
-                // single_beep();
+                statevar.state = 40;
                 beep_n(1, petmcvar);   //  single beep
                 sendStateMessage(4);
-                // setStateled(4);
+                statevar.startRampTics = statevar.elapsedTics;
+                statevar.startRampTension = measurements.lastTension;               
                 mc_debug_print();
             }
             break;
-        case 4: // ramp
+
+        case 40: // ramp
+            petmcvar->cp_ledout = LED_RAMP & petmcvar->ledBlink;
             if (statevar.elapsedTics - statevar.startRampTics > stateparam.RAMP_TIME * stateparam.TICSPERSECOND)
             {
-                statevar.state = 5;
-                // setStateled(5);
+                statevar.state = 50;
                 beep_n(1, petmcvar);   //  single beep
-                // single_beep();
                 sendStateMessage(5);
                 statevar.minCableSpeed = measurements.lastCableSpeed;
-                mc_debug_print();
                 statevar.taperFlag = 0;
+                mc_debug_print();                
             }
             break;
-        case 5: // constant
+
+        case 50: // climb
             //  xprintf(UXPRT,"%6d\n\r", (double) measurements.lastCableSpeed);
+            petmcvar->cp_ledout = LED_CLIMB & petmcvar->ledBlink;
             if (measurements.lastCableSpeed < statevar.minCableSpeed)
             {
                 statevar.minCableSpeed = measurements.lastCableSpeed;
@@ -581,24 +608,23 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
             if (measurements.lastCableSpeed > statevar.minCableSpeed + stateparam.RELEASEDELTA)
             {
                 beep_n(1, petmcvar);   //  single beep
-                // single_beep();
-                statevar.state = 6;
-                // setStateled(6);
+                statevar.state = 60;
                 sendStateMessage(6);
                 mc_debug_print();
             }
             break;
-        case 6: // recovery
+
+        case 60: // recovery
              //xprintf(UXPRT,"%6d\n\r",measurements.lastCableSpeed);
+            petmcvar->cp_ledout = LED_RECOVERY & petmcvar->ledBlink;
             if (measurements.lastCableSpeed < stateparam.ZERO_CABLE_SPEED_TOLERANCE)
             {
-                statevar.state = 0;
-                beep_n(1, petmcvar);   //  single beep
-                // single_beep();
-                // setStateled(0);
-                sendStateMessage(1);
-                mc_debug_print();
-                statevar.launchResetFlag = 1;                            
+                statevar.state = 10;
+                beep_n(2, petmcvar);   //  single beep
+                petmcvar->cp_ledout = LED_PREP;
+                sendStateMessage(1);                
+                statevar.launchResetFlag = 1; 
+                mc_debug_print();                           
             }
             break;
     }   // end of switch (statevar.state)
@@ -608,19 +634,23 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
     {
         switch (statevar.state)
         {
-            case 0: // prep
+            case 0:
                 statevar.setptTension = 0;
                 break;
 
-            case 1: // armed
+            case 10: // prep
                 statevar.setptTension = 0;
                 break;
-            case 2: // profile 1   soft start
+
+            case 20: // armed
+                statevar.setptTension = 0;
+                break;
+            case 30: // profile 0   soft start
                 statevar.setptTension = (float) (stateparam.GROUND_TENSION_FACTOR * stateparam.GLIDER_WEIGHT
                 * 0.5  * (1 - cosf(stateparam.K1 * (statevar.elapsedTics - statevar.startProfileTics))));
                 break;
 
-            case 3: // profile 2   constant tension ground roll with taper
+            case 31: // profile 1   constant tension ground roll with taper
                 // System.out.println(measurements.lastCableSpeed +  stateparam.PROFILE_TRIGGER_CABLE_SPEED);
                 if (measurements.lastCableSpeed < stateparam.PROFILE_TRIGGER_CABLE_SPEED)
                 {
@@ -633,14 +663,14 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
                     //xprintf(UXPRT,"%6d\n\r", (double) statevar.setptTension);	// System.out.println(tension);
                 }
                 break;
-            case 4: // ramp
+            case 40: // ramp
                 statevar.setptTension = (float) ((statevar.startRampTension
                         + (stateparam.CLIMB_TENSION_FACTOR * stateparam.GLIDER_WEIGHT
                         - statevar.startRampTension)
                         * sinf(stateparam.K3 * (statevar.elapsedTics - statevar.startRampTics))));
                 //xprintf(UXPRT,"%6d\n\r", (double) statevar.setptTension);	//  System.out.println(tension);
                 break;
-            case 5: // constant
+            case 50: // constant
                 statevar.setptTension = (float) (stateparam.CLIMB_TENSION_FACTOR * stateparam.GLIDER_WEIGHT);
                 if (statevar.taperFlag == 1)
                 {
@@ -648,7 +678,7 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
                             * (1 + cosf(stateparam.K4 * (statevar.elapsedTics - statevar.taperTics)));
                 }
                 break;
-            case 6: // recovery
+            case 60: // recovery
                 statevar.setptTension = stateparam.MAX_PARACHUTE_TENSION;
                 if (measurements.lastCableSpeed > stateparam.PROFILE_TRIGGER_CABLE_SPEED)
                 {
@@ -695,9 +725,14 @@ void mc_state_lcd_poll(struct ETMCVAR* petmcvar)
         snprintf(lcdLine, 21, "Time: %d", (int) petmcvar->unixtime);      
         lcd_printToLine(UARTLCD, 2, lcdLine);
         xprintf(UXPRT,"%s ",lcdLine);
-		snprintf(lcdLine, 21, "Control Lvr: %7.3f", (double) calib_control_lever_get());		
-        lcd_printToLine(UARTLCD, 3, lcdLine);
-        xprintf(UXPRT,"%s \n\r",lcdLine);
+		//snprintf(lcdLine, 21, "Control Lvr: %7.3f", (double) calib_control_lever_get());		
+        //lcd_printToLine(UARTLCD, 3, lcdLine);
+        //xprintf(UXPRT,"%s \n\r",lcdLine);
+snprintf(lcdLine, 21, "Switches: %8x", (int) petmcvar->cp_swin);        
+lcd_printToLine(UARTLCD, 3, lcdLine);
+xprintf(UXPRT,"%s \n\r",lcdLine);
+
+        
 	}
 	return;
 }

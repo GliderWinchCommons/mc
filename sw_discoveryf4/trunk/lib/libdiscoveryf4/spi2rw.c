@@ -105,7 +105,7 @@ unsigned short spi2_busy(void)
  * @param	: char *pin  = pointer to byte array to receive bytes coming in
  * @param	: int count  = byte count of number of write/read cycles
 *******************************************************************************/
-void spi2_rw (char *pout, char * pin, int count)
+void spi2_rw (char * pout, char * pin, int count)
 {
 	/* The following should not be necessary, but it is here JIC. */
 	while ( spi2_busy() == 0 );	// Loop until a prior spi communication is complete

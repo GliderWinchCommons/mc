@@ -117,12 +117,21 @@ void timeKeeper (void)
  * @brief	: SPI send/rcv & pacing 
  * ************************************************************************************** */
 	void spiInOut (void) {
+		//  this needs to be moved into  SPIInOut()
+    			//  convert to a binary word for comparisons (not general for different SPI2SIZE)
+    		
 		if (((int)(DTWTIME - t_spi)) > 0) {
 			t_spi += SPIPACE;	// (200 per sec)
 
 			if (spi2_busy() != 0) // Is SPI2 busy?
 			{ // Here, no.
-				spi2_rw(etmcvar.spi_ledout, etmcvar.spi_swin, SPI2SIZE); // Send/rcv three bytes
+				u32 tmp = etmcvar.cp_ledout;
+    			for (int i = SPI2SIZE - 1; i >= 0; i--)
+    			{
+    				etmcvar.spi_ledout[i] = (char) tmp;
+    				tmp >>= 8;
+    			}
+				spi2_rw(etmcvar.spi_ledout, etmcvar.spi_swin, SPI2SIZE); 
 			}
 		}
 	}
@@ -151,6 +160,7 @@ int main(void)
 	etmcvar.unixtime = 1409768561; // GMT: Wed, 03 Sep 2014 18:22:41 GMT	
 
 	
+	etmcvar.cp_ledout = 0;	
 	#if George
 	calib_control_lever(&etmcvar);
 	#endif
@@ -158,9 +168,10 @@ int main(void)
 	mc_state_init(&etmcvar);
 
 	/* --------------------- Initial times ---------------------------------------------------------------------------- */
+	t_spi = DTWTIME + SPIPACE;
 	t_led        = DTWTIME + FLASHCOUNT; 
 	t_timeKeeper = DTWTIME + SIXTYFOURTH;
-	t_spi = DTWTIME + SPIPACE;
+	
 	
 	t_loop0 = DTWTIME;
 	t_loop9 = DTWTIME + sysclk_freq; 	// 1 sec time
@@ -168,6 +179,8 @@ int main(void)
 	//	intialize beeper variables
 	etmcvar.beep_count = 0;
 	etmcvar.beep_state = 0;
+
+
 
 /* --------------------- Endless Polling Loop ----------------------------------------------- */
 	while (1==1)
@@ -198,11 +211,14 @@ int main(void)
 			mc_state_msg_select(pmc);	// Select msgs needed for MC
 //xprintf(UXPRT,"U %d %08X\n\r",U++, pmc->id );
 		}
+		//	get most current switch positions
+		etmcvar.cp_swin = (((int) etmcvar.spi_swin[0]) << 8) | (int) etmcvar.spi_swin[1];
 
 		/* Run state machine */
 		stateMachine(&etmcvar);
 
 		/* Update SPI - led output & switch input */
+		
 		spiInOut();
 
 		/* Output data to LCD periodically */
