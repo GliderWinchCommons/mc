@@ -160,7 +160,9 @@ int main(void)
 	etmcvar.unixtime = 1409768561; // GMT: Wed, 03 Sep 2014 18:22:41 GMT	
 
 	
-	etmcvar.cp_ledout = 0;	
+	etmcvar.cp_ledout = 0;
+
+
 	#if George
 	calib_control_lever(&etmcvar);
 	#endif

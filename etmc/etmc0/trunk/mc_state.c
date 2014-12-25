@@ -4,6 +4,10 @@
 * Board              : 
 * Description        : ET state machine for etmc0.c
 *******************************************************************************/
+#include "libopencm3/stm32/f4/gpio.h"
+
+
+
 #include "etmc0.h"
 #include "mc_msgs.h"
 #include "common_canid_et.h"
@@ -728,7 +732,7 @@ void mc_state_lcd_poll(struct ETMCVAR* petmcvar)
 		//snprintf(lcdLine, 21, "Control Lvr: %7.3f", (double) calib_control_lever_get());		
         //lcd_printToLine(UARTLCD, 3, lcdLine);
         //xprintf(UXPRT,"%s \n\r",lcdLine);
-snprintf(lcdLine, 21, "Switches: %8x", (int) petmcvar->cp_swin);        
+snprintf(lcdLine, 21, "Switches: %8x", (int) GPIOB_IDR); //(int) petmcvar->cp_swin);        
 lcd_printToLine(UARTLCD, 3, lcdLine);
 xprintf(UXPRT,"%s \n\r",lcdLine);
 

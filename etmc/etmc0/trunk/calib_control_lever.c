@@ -19,7 +19,7 @@
 #include "spi2rw.h"
 #include "4x20lcd.h"
 #include "beep_n_lcd.h"
-#include "etmc0.h"
+
 
 
 
@@ -55,6 +55,7 @@ void calib_control_lever(struct ETMCVAR* petmcvar)
 	char vv[128];
 
 	int ledCount = 0;
+	int cycleCount = 4;
 	#define ledPatternLength 32
 	#define ledLag 3
 	//	led test pattern with extension to effect circular behavior
@@ -100,119 +101,178 @@ void calib_control_lever(struct ETMCVAR* petmcvar)
 		0x0000
 	};
 
-	xprintf (UXPRT,"\nBegin control lever calibration\n\r");
-	// dummy read of SPI switches to deal with false 0000 initially returned
-	spi2_rw(petmcvar->spi_ledout, petmcvar->spi_swin, SPI2SIZE);
-	while(clcalstate < 6)
+	if ( 1 )//GPIOB_IDR & 0x0004) //	test for local or glass CP
 	{
-		if (((int)(DTWTIME - t_led)) > 0) // Has the time expired?
-		{ //	Time expired
-			//	read filtered control lever adc last value and update min and max values
-			adc_tmp = adc_last_filtered[CL_ADC_CHANNEL];
-			cloffset = (cloffset < adc_tmp) ? cloffset : adc_tmp;
-			clmax = (clmax > adc_tmp) ? clmax : adc_tmp;
-			//	Read SPI switches
-			//	get most current switch positions
-			
-			//	Not sure why 
-			/*if (spi2_busy() != 0) // Is SPI2 busy?
-			{ // SPI completed  
-				spi2_rw(petmcvar->spi_ledout, petmcvar->spi_swin, SPI2SIZE); // Send/rcv SPI2SIZE bytes
-				//	convert to a binary word for comparisons (not general for different SPI2SIZE)
-				sw = (((int) petmcvar->spi_swin[0]) << 8) | (int) petmcvar->spi_swin[1];
-				//sw = petmcvar->spi_swin;	*/
-			
-			//	usage of spi2rw() is bad.  Should wait for not busy after starting it.
+		xprintf (UXPRT,"\nBegin control lever calibration\n\r");
+		// dummy read of SPI switches to deal with false 0000 initially returned
+		spi2_rw(petmcvar->spi_ledout, petmcvar->spi_swin, SPI2SIZE);
+		while(clcalstate < 6)
+		{
+			if (((int)(DTWTIME - t_led)) > 0) // Has the time expired?
+			{ //	Time expired
+				//	read filtered control lever adc last value and update min and max values
+				adc_tmp = adc_last_filtered[CL_ADC_CHANNEL];
+				cloffset = (cloffset < adc_tmp) ? cloffset : adc_tmp;
+				clmax = (clmax > adc_tmp) ? clmax : adc_tmp;
+				//	Read SPI switches
+				//	get most current switch positions
+				
+				//	Not sure why 
+				/*if (spi2_busy() != 0) // Is SPI2 busy?
+				{ // SPI completed  
+					spi2_rw(petmcvar->spi_ledout, petmcvar->spi_swin, SPI2SIZE); // Send/rcv SPI2SIZE bytes
+					//	convert to a binary word for comparisons (not general for different SPI2SIZE)
+					sw = (((int) petmcvar->spi_swin[0]) << 8) | (int) petmcvar->spi_swin[1];
+					//sw = petmcvar->spi_swin;	*/
+				
+				//	usage of spi2rw() is bad.  Should wait for not busy after starting it.
 
-			if (spi2_busy() != 0) // Is SPI2 busy?
-			{ // Here, no.
-				u32 tmp = petmcvar->cp_ledout;
-    			for (i = SPI2SIZE - 1; i >= 0; i--)
-    			{
-    				petmcvar->spi_ledout[i] = (char) tmp;
-    				tmp >>= 8;
-    			}
-    			petmcvar->cp_swin = (((int) petmcvar->spi_swin[0]) << 8) | (int) petmcvar->spi_swin[1];
-				spi2_rw(petmcvar->spi_ledout, petmcvar->spi_swin, SPI2SIZE); 
-				xprintf(UXPRT, "%5u %5d %8x \n\r", clcalstate, adc_tmp, petmcvar->cp_swin);	
+				if (spi2_busy() != 0) // Is SPI2 busy?
+				{ // Here, no.
+					u32 tmp = petmcvar->cp_ledout;
+	    			for (i = SPI2SIZE - 1; i >= 0; i--)
+	    			{
+	    				petmcvar->spi_ledout[i] = (char) tmp;
+	    				tmp >>= 8;
+	    			}
+	    			petmcvar->cp_swin = (((int) petmcvar->spi_swin[0]) << 8) | (int) petmcvar->spi_swin[1];
+					spi2_rw(petmcvar->spi_ledout, petmcvar->spi_swin, SPI2SIZE); 
+					xprintf(UXPRT, "%5u %5d %8x \n\r", clcalstate, adc_tmp, petmcvar->cp_swin);	
 
-				petmcvar->cp_ledout	= 0;
-				if ((clcalstate == 1) || (clcalstate == 2))
+					petmcvar->cp_ledout	= 0;
+					if ((clcalstate == 1) || (clcalstate == 2))
+					{
+						// LEDs chasing their tails
+						for (i = 0; i < ledLag; i++)
+						{
+							petmcvar->cp_ledout	|= ledTestPattern[ledCount + i];
+						}
+					}
+
+					switch(clcalstate)
+					{				
+						case 0:	//	entry state
+						{
+							sprintf(vv, "Cycle control lever");
+							lcd_printToLine(UARTLCD, 0, vv);
+							sprintf(vv, "twice:");
+							lcd_printToLine(UARTLCD, 1, vv);
+							double_beep();
+							clcalstate = 1;
+						}
+						case 1:	// waiting for CL to rest position	
+						{
+							if (petmcvar->cp_swin & CLREST) break;
+							clcalstate = 2;
+							cloffset = clmax = adc_tmp;	//	reset min and max values
+							sprintf(vv, "twice: 0");
+							lcd_printToLine(UARTLCD, 1, vv);
+							break;
+						}
+						case 2:	//	waiting for full scale position first time
+						{
+							if (petmcvar->cp_swin & CLFS) break ;
+							clcalstate = 3;
+							sprintf(vv, "twice: 0.5");
+							lcd_printToLine(UARTLCD, 1, vv);
+							break;						
+						}
+						case 3:	//	wating for return to rest first time
+						{
+							if (petmcvar->cp_swin & CLREST) break; 
+							clcalstate = 4;
+							// clcalstate = 6;		//	only requires 1 cycle
+							sprintf(vv, "twice: 1  ");
+							lcd_printToLine(UARTLCD, 1, vv);
+							single_beep();
+							break;
+						}
+						case 4:	//	waiting for full scale second time
+						{
+							if (petmcvar->cp_swin & CLFS) break;
+							clcalstate = 5;
+							sprintf(vv, "twice: 1.5");
+							lcd_printToLine(UARTLCD, 1, vv);
+							break;					
+						}
+						case 5:	//	waiting for return to rest second time
+						{
+							if (petmcvar->cp_swin & CLREST) break;
+							single_beep();
+							clcalstate = 6; 
+						}
+					}			
+				}
+				toggle_4leds(); 	// Advance some LED pattern
+				ledCount++;
+				if (ledCount >= ledPatternLength)
 				{
-					// LEDs chasing their tails
+					ledCount = 0;
+				} 
+				t_led += FLASHCOUNT; 	// Set next toggle time	
+			}
+		}	
+		fpclscale = 1.0 / (clmax - cloffset);
+		lcd_clear(UARTLCD);
+		xprintf(UXPRT, "  cloffset: %10d clmax: %10d\n\r", cloffset, clmax);
+		xprintf 	(UXPRT, "   Control Lever Initial Calibration Complete\n\r");
+	}
+	else
+	{	
+		xprintf (UXPRT,"\nGlass CP indicated\n\r");
+		spi2_rw(petmcvar->spi_ledout, petmcvar->spi_swin, SPI2SIZE);
+		while(clcalstate < 2)
+		{
+			if (((int)(DTWTIME - t_led)) > 0) // Has the time expired?
+			{ //	Time expired
+				if (spi2_busy() != 0) // Is SPI2 busy?
+				{ // Here, no.
+					u32 tmp = petmcvar->cp_ledout;
+	    			for (i = SPI2SIZE - 1; i >= 0; i--)
+	    			{
+	    				petmcvar->spi_ledout[i] = (char) tmp;
+	    				tmp >>= 8;
+	    			}
+	    			petmcvar->cp_swin = (((int) petmcvar->spi_swin[0]) << 8) | (int) petmcvar->spi_swin[1];
+					spi2_rw(petmcvar->spi_ledout, petmcvar->spi_swin, SPI2SIZE); 
+					petmcvar->cp_ledout	= 0;					
+					// CP LEDs chasing their tails
 					for (i = 0; i < ledLag; i++)
 					{
 						petmcvar->cp_ledout	|= ledTestPattern[ledCount + i];
-					}
+					}								
 				}
-
 				switch(clcalstate)
-				{				
-					case 0:	//	entry state
-					{
-						sprintf(vv, "Cycle control lever");
-						lcd_printToLine(UARTLCD, 0, vv);
-						sprintf(vv, "twice:");
-						lcd_printToLine(UARTLCD, 1, vv);
-						double_beep();
-						clcalstate = 1;
+					{				
+						case 0:	//	entry state
+						{
+							sprintf(vv, "Glass CP Indicated");
+							lcd_printToLine(UARTLCD, 0, vv);
+							double_beep();
+							clcalstate = 1;
+						}
+						case 1:	//	flash the lights through several cycles
+						{
+							if (cycleCount <= 0)
+							{
+								single_beep();
+								clcalstate = 2;
+							}
+
+						}
 					}
-					case 1:	// waiting for CL to rest position	
-					{
-						if (petmcvar->cp_swin & CLREST) break;
-						clcalstate = 2;
-						cloffset = clmax = adc_tmp;	//	reset min and max values
-						sprintf(vv, "twice: 0");
-						lcd_printToLine(UARTLCD, 1, vv);
-						break;
-					}
-					case 2:	//	waiting for full scale position first time
-					{
-						if (petmcvar->cp_swin & CLFS) break ;
-						clcalstate = 3;
-						sprintf(vv, "twice: 0.5");
-						lcd_printToLine(UARTLCD, 1, vv);
-						break;						
-					}
-					case 3:	//	wating for return to rest first time
-					{
-						if (petmcvar->cp_swin & CLREST) break; 
-						clcalstate = 4;
-						// clcalstate = 6;		//	only requires 1 cycle
-						sprintf(vv, "twice: 1  ");
-						lcd_printToLine(UARTLCD, 1, vv);
-						single_beep();
-						break;
-					}
-					case 4:	//	waiting for full scale second time
-					{
-						if (petmcvar->cp_swin & CLFS) break;
-						clcalstate = 5;
-						sprintf(vv, "twice: 1.5");
-						lcd_printToLine(UARTLCD, 1, vv);
-						break;					
-					}
-					case 5:	//	waiting for return to rest second time
-					{
-						if (petmcvar->cp_swin & CLREST) break;
-						single_beep();
-						clcalstate = 6; 
-					}
-				}			
+				toggle_4leds(); 	// Advance some LED pattern
+				ledCount++;
+				if (ledCount >= ledPatternLength)
+				{
+					ledCount = 0;
+					cycleCount--;
+				} 
+				t_led += FLASHCOUNT; 	// Set next toggle time	
 			}
-			toggle_4leds(); 	// Advance some LED pattern
-			ledCount++;
-			if (ledCount >= ledPatternLength)
-			{
-				ledCount = 0;
-			} 
-			t_led += FLASHCOUNT; 	// Set next toggle time	
 		}
-	}	
-	fpclscale = 1.0 / (clmax - cloffset);
-	lcd_clear(UARTLCD);
-	xprintf(UXPRT, "  cloffset: %10d clmax: %10d\n\r", cloffset, clmax);
-	xprintf 	(UXPRT, "   Control Lever Initial Calibration Complete\n\r");
+		lcd_clear(UARTLCD);
+	}
 	return;
 }
 /* ***********************************************************************************************************

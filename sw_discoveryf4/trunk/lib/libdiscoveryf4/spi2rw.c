@@ -28,17 +28,17 @@ void 	(*spi2_readdoneptr)(void);	// Address of function to call upon completion 
 static const struct PINCONFIG	outputcs = { \
 	GPIO_MODE_OUTPUT,	// mode: output 
 	GPIO_OTYPE_PP, 		// output type: push-pull 		
-	GPIO_OSPEED_100MHZ, 	// speed: highest drive level
+	GPIO_OSPEED_100MHZ, // speed: highest drive level
 	GPIO_PUPD_NONE, 	// pull up/down: none
-	0 };			// Alternate function code: not applicable
+	0 };				// Alternate function code: not applicable
 
 //  SPI input pin configuration (MISO)  */
 static const struct PINCONFIG	inputaf = { \
 	GPIO_MODE_AF,		// mode: Input alternate function 
-	0, 			// output type: not applicable 		
-	0, 			// speed: not applicable
+	0, 					// output type: not applicable 		
+	0, 					// speed: not applicable
 	GPIO_PUPD_PULLUP, 	// pull up/down: pullup 
-	GPIO_AF5 };		// AFRLy & AFRHy selection
+	GPIO_AF5 };			// AFRLy & AFRHy selection
 
 //  SPI output pin configuration (SCK, MOSI) */
 static const struct PINCONFIG	outputaf = { \
@@ -65,10 +65,11 @@ void spi2rw_init(void)
 	f4gpiopins_Config ((volatile u32*)GPIOE,  6, (struct PINCONFIG*)&outputcs);	// PWM_LED
 	GPIO_BSRR(GPIOE) = (1 << (6 + 16));		// Set LCD_PWM low initially, later connect to PWM
 	GPIO_BSRR(GPIOB)  = (1 << 12);			// Set /CS high
-
-//	temporary activate beeper 
+//	moved to init_hardware_mc
+/*	temporary activate beeper 
 	f4gpiopins_Config ((volatile u32*)GPIOA,  8, (struct PINCONFIG*)&outputcs);	// Beeper
-	GPIO_BSRR(GPIOA) = (1 << (8 + 16));		
+	GPIO_BSRR(GPIOA) = (1 << (8 + 16));	
+*/	
 
 
 	// Set divisor to max.  If APB1 is 42 Mhz, then divide by 256 = 164062.5 Hz, 48 us per byte

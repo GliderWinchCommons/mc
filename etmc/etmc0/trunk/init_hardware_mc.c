@@ -32,6 +32,22 @@
 #include "adc_mc.h"
 #include "beep_n_lcd.h"
 
+//	output discrete lines for functions like chip select
+static const struct PINCONFIG	outputcs = { \
+	GPIO_MODE_OUTPUT,	// mode: output 
+	GPIO_OTYPE_PP, 		// output type: push-pull 		
+	GPIO_OSPEED_100MHZ, // speed: highest drive level
+	GPIO_PUPD_NONE, 	// pull up/down: none
+	0 };				// Alternate function code: not applicable
+
+// input discrete with pull up
+static const struct PINCONFIG inputpu = { \
+	GPIO_MODE_INPUT, 	// mode: Input
+	0,                  // output type: not applicable
+	0,                  // speed: not applicable
+	GPIO_PUPD_PULLUP,   // pull up/down:
+	0 };                // alternate function: not used
+
 
 /* The following values provide --
 External 8 MHz xtal
@@ -170,6 +186,17 @@ void init_hardware_mc (void)
 			show_op_the_error("CAN filter mask init", init_ret, 25);  // Show error and pause for 2.5 secs
 		}
 		xprintf (UXPRT,"CAN initialization completed\n\r");
+
+		//	configure beeper discrete I/O
+		f4gpiopins_Config ((volatile u32*)GPIOA,  8, (struct PINCONFIG*)&outputcs);	// Beeper
+		GPIO_BSRR(GPIOA) = (1 << (8 + 16));	
+
+		//	configure glass control panel detection pin
+		f4gpiopins_Config ((volatile u32*)GPIOB, 2, (struct PINCONFIG*)&inputpu);
+
+		//	is delay needed here to let pull up work?
+
+
 	/* --------------------- Hardware is ready, so do program-specific startup ---------------------------- */
 
 
