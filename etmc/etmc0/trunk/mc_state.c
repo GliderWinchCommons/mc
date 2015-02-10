@@ -6,8 +6,6 @@
 *******************************************************************************/
 #include "libopencm3/stm32/f4/gpio.h"
 
-
-
 #include "etmc0.h"
 #include "mc_msgs.h"
 #include "common_canid_et.h"
@@ -21,6 +19,7 @@
 #include "clockspecifysetup.h"
 #include "4x20lcd.h"
 #include "beep_n_lcd.h"
+#include "pay_flt_cnv.h"
 
 #define PI 3.14159265358979323
 
@@ -28,7 +27,6 @@
 int debug_mc_state1; // frac time
 u32 debug_mc_state2; // delay time
 int debug_mc_state3; // max delay
-
 
 // lcd
 u32 t_lcd;
@@ -157,7 +155,6 @@ struct MCMSGSUSED
 	struct MCRCVDCANMSG lastrcvdCableAngle;		// CABLE_ANGLE_MESSAGE_ID
 	struct MCRCVDCANMSG lastrcvdLaunchParam;	// CANID_LAUNCH_PARAM
 };
-
 
 static struct MCSTATEPARAM stateparam;
 static struct MCSCALEOFFSET scaleoffset;
@@ -465,20 +462,18 @@ debug_mc_state1 = petmcvar->fracTime;
 debug_mc_state1 = petmcvar->fracTime;
             msg_out_mc(&can); // output to CAN+USB
 debug_mc_state2 = DTWTIME; // Time round trip to PS
-            // next on time Time message time                   
+            //  Control Panel Output Messages
+            if (GPIOB_IDR & (1 << 1)) //    test for local or glass CP
+            {
+                can.id = CANID_CP_CL_LCL;
+                can.dlc = 3;
+                floattopayhalffp(&can.cd.uc[0], 0.0); //petmcvar->cp_cl);
+                can.cd.uc[2] = 0;
+                msg_out_mc(&can);
+            }
+
+            // next on time Time message time
             simulationvar.nextStepTime  += stateparam.STEPTIMECLOCKS;
-
-
-// dummy control lever messages to flush buffer
-can.id = CANID_CONTROL_LEVER;
-can.dlc = 0;
-can.dlc = 8; // Max size
-can.cd.uc[0] = debug_mc_state1;    //  for debug        
-for (int i = 0; i < 0; i++)
-{
-	msg_out_mc(&can);
-
-}    
 	} 
         #endif
     
@@ -496,9 +491,7 @@ for (int i = 0; i < 0; i++)
         break;
 
         case 10: // prep                        
-            //  This will be replaced with detection of pushing the ARM button
-            //  if (calib_control_lever_get() < (float) 0.05)
-            
+                        
             petmcvar->cp_ledout = (LED_PREP & petmcvar->ledBlink) | LED_ARM_PB | LED_PREP_PB;
             if((petmcvar->cp_swin & SW_SAFE) == 0)
             {
@@ -732,11 +725,9 @@ void mc_state_lcd_poll(struct ETMCVAR* petmcvar)
 		//snprintf(lcdLine, 21, "Control Lvr: %7.3f", (double) calib_control_lever_get());		
         //lcd_printToLine(UARTLCD, 3, lcdLine);
         //xprintf(UXPRT,"%s \n\r",lcdLine);
-snprintf(lcdLine, 21, "Switches: %8x", (int) GPIOB_IDR); //(int) petmcvar->cp_swin);        
+snprintf(lcdLine, 21, "Switches: %8x", (int) petmcvar->cp_swin);        
 lcd_printToLine(UARTLCD, 3, lcdLine);
-xprintf(UXPRT,"%s \n\r",lcdLine);
-
-        
+xprintf(UXPRT,"%s \n\r",lcdLine);        
 	}
 	return;
 }

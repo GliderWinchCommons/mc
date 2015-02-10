@@ -39,11 +39,7 @@
 #define PB_ARM    1 << 13	//	active low
 #define PB_PREP   1 << 12	//	active low
 #define CL_RST_N0 1 << 11	//	low at rest
-
 #define CL_FS_ NO 1 << 8	// 	low at full scale
-
-
-
 
 
 struct ETMCVAR
@@ -52,6 +48,7 @@ struct ETMCVAR
 	u32 cp_ledout;				// concatenated spi_ledout
 	char spi_swin[SPI2SIZE];
 	u32 cp_swin;				//	concatenated spi_swin
+	float cp_cl;				//	working control lever value
 	u8 fracTime; 	
 	u32 unixtime;
 	int ledBlink;

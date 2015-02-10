@@ -192,7 +192,7 @@ void init_hardware_mc (void)
 		GPIO_BSRR(GPIOA) = (1 << (8 + 16));	
 
 		//	configure glass control panel detection pin
-		f4gpiopins_Config ((volatile u32*)GPIOB, 2, (struct PINCONFIG*)&inputpu);
+		f4gpiopins_Config ((volatile u32*)GPIOB, 1, (struct PINCONFIG*)&inputpu);
 
 		//	is delay needed here to let pull up work?
 

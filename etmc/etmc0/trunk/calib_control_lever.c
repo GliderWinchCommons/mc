@@ -41,11 +41,6 @@ static int cloffset = 0;
 static int clmax = 0;	
 static float fpclscale;		//	CL conversion scale factor 
 
-
-
-
-
-
 void calib_control_lever(struct ETMCVAR* petmcvar)
 {
 	int clcalstate = 0;		// state for control lever intial calibration
@@ -101,7 +96,7 @@ void calib_control_lever(struct ETMCVAR* petmcvar)
 		0x0000
 	};
 
-	if ( 1 )//GPIOB_IDR & 0x0004) //	test for local or glass CP
+	if (GPIOB_IDR & (1 << 1)) //	test for local or glass CP
 	{
 		xprintf (UXPRT,"\nBegin control lever calibration\n\r");
 		// dummy read of SPI switches to deal with false 0000 initially returned

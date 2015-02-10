@@ -134,6 +134,11 @@ void timeKeeper (void)
 				spi2_rw(etmcvar.spi_ledout, etmcvar.spi_swin, SPI2SIZE); 
 			}
 		}
+		if (GPIOB_IDR & (1 << 1))
+		{
+			//	get most current switch positions
+			etmcvar.cp_swin = (((int) etmcvar.spi_swin[0]) << 8) | (int) etmcvar.spi_swin[1];
+		}
 	}
 
 /*#################################################################################################
@@ -213,9 +218,7 @@ int main(void)
 			mc_state_msg_select(pmc);	// Select msgs needed for MC
 //xprintf(UXPRT,"U %d %08X\n\r",U++, pmc->id );
 		}
-		//	get most current switch positions
-		etmcvar.cp_swin = (((int) etmcvar.spi_swin[0]) << 8) | (int) etmcvar.spi_swin[1];
-
+		
 		/* Run state machine */
 		stateMachine(&etmcvar);
 
@@ -231,7 +234,6 @@ int main(void)
 
 		/* Output msg error counter periodically */
 		CAN_error_msg_poll(UXPRT);
-
 	}
 	return 0;	
 }
