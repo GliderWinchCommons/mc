@@ -9,7 +9,6 @@
 8/9/2014 This code was started as a compilation of gatef.c, adctest, and spi2 tests.
 
 */
-#include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
@@ -125,7 +124,7 @@ void timeKeeper (void)
 
 			if (spi2_busy() != 0) // Is SPI2 busy?
 			{ // Here, no.
-				u32 tmp = etmcvar.cp_ledout;
+				u32 tmp = etmcvar.cp_outputs;
     			for (int i = SPI2SIZE - 1; i >= 0; i--)
     			{
     				etmcvar.spi_ledout[i] = (char) tmp;
@@ -137,7 +136,7 @@ void timeKeeper (void)
 		if (GPIOB_IDR & (1 << 1))
 		{
 			//	get most current switch positions
-			etmcvar.cp_swin = (((int) etmcvar.spi_swin[0]) << 8) | (int) etmcvar.spi_swin[1];
+			etmcvar.cp_inputs = (((int) etmcvar.spi_swin[0]) << 8) | (int) etmcvar.spi_swin[1];
 		}
 	}
 
@@ -165,7 +164,7 @@ int main(void)
 	etmcvar.unixtime = 1409768561; // GMT: Wed, 03 Sep 2014 18:22:41 GMT	
 
 	
-	etmcvar.cp_ledout = 0;
+	etmcvar.cp_outputs = 0;
 
 
 	#if George
@@ -187,7 +186,11 @@ int main(void)
 	etmcvar.beep_count = 0;
 	etmcvar.beep_state = 0;
 
-
+	//	initialize control panel history variable
+	etmcvar.cp_inputs_count = -1;
+	etmcvar.cp_outputs_count = -1;
+	etmcvar.cp_cl_count = -1;
+	etmcvar.cp_lcd_count = -1;
 
 /* --------------------- Endless Polling Loop ----------------------------------------------- */
 	while (1==1)
@@ -218,7 +221,7 @@ int main(void)
 			mc_state_msg_select(pmc);	// Select msgs needed for MC
 //xprintf(UXPRT,"U %d %08X\n\r",U++, pmc->id );
 		}
-		
+				
 		/* Run state machine */
 		stateMachine(&etmcvar);
 

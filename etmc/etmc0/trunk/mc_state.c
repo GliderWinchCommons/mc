@@ -83,6 +83,13 @@ struct MCSTATEPARAM
     float PARACHUTE_TAPER_SPEED;
     float MAX_PARACHUTE_CABLE_SPEED;
     float K5;
+
+//  for control panel 
+    u8 cp_cl_heartbeat;
+    float cp_cl_delta;
+    u8 cp_inputs_heartbeat;
+    u8 cp_outputs_heartbeat;
+    u8 cp_lcd_heartbeat;
 };
 
 struct MCSCALEOFFSET
@@ -282,6 +289,14 @@ void mc_state_init(struct ETMCVAR* petmcvar)
     scaleoffset.motorToDrum = (float) 7.0;    //  speed reduction motor to drum
     scaleoffset.motorSpeedScale = (float) (1.0 / 128.0);
 
+//  control panel update parameters
+    stateparam.cp_cl_heartbeat = 63;
+    stateparam.cp_cl_delta = 0.005;
+    stateparam.cp_inputs_heartbeat = 63;
+    stateparam.cp_outputs_heartbeat = 63;
+    stateparam.cp_lcd_heartbeat = 63;
+
+
 // struct MCSIMULATIONVAR    
 //  simulationvar.startTime = (passed from etmc0.c to us)
 
@@ -389,6 +404,7 @@ void mc_debug_print(void)
 void stateMachine(struct ETMCVAR* petmcvar)
 { 
 	struct CANRCVBUF can;
+    petmcvar->cp_cl = calib_control_lever_get();
 
 
     if (statevar.launchResetFlag == 1)   // init variables for launch
@@ -467,7 +483,7 @@ debug_mc_state2 = DTWTIME; // Time round trip to PS
             {
                 can.id = CANID_CP_CL_LCL;
                 can.dlc = 3;
-                floattopayhalffp(&can.cd.uc[0], 0.0); //petmcvar->cp_cl);
+                floattopayhalffp(&can.cd.uc[0], petmcvar->cp_cl);
                 can.cd.uc[2] = 0;
                 msg_out_mc(&can);
             }
@@ -480,8 +496,8 @@ debug_mc_state2 = DTWTIME; // Time round trip to PS
     switch (statevar.state)
     {
         case 0: //  safe
-        petmcvar->cp_ledout = LED_SAFE;
-        if((petmcvar->cp_swin & SW_ACTIVE) == 0)
+        petmcvar->cp_outputs = LED_SAFE;
+        if((petmcvar->cp_inputs & SW_ACTIVE) == 0)
         {
             statevar.state = 10; // going to prep state
             sendStateMessage(1);
@@ -492,8 +508,8 @@ debug_mc_state2 = DTWTIME; // Time round trip to PS
 
         case 10: // prep                        
                         
-            petmcvar->cp_ledout = (LED_PREP & petmcvar->ledBlink) | LED_ARM_PB | LED_PREP_PB;
-            if((petmcvar->cp_swin & SW_SAFE) == 0)
+            petmcvar->cp_outputs = (LED_PREP & petmcvar->ledBlink) | LED_ARM_PB | LED_PREP_PB;
+            if((petmcvar->cp_inputs & SW_SAFE) == 0)
             {
                 statevar.state = 0; // going to safe state
                 sendStateMessage(0);
@@ -501,7 +517,7 @@ debug_mc_state2 = DTWTIME; // Time round trip to PS
                 mc_debug_print();
                 break;
             }
-            if((petmcvar->cp_swin & PB_ARM) == 0)
+            if((petmcvar->cp_inputs & PB_ARM) == 0)
             { 
                 statevar.state = 20; // going to armed state
                 sendStateMessage(2);
@@ -511,8 +527,8 @@ debug_mc_state2 = DTWTIME; // Time round trip to PS
             break;
 
         case 20: // armed            
-            petmcvar->cp_ledout = LED_ARM_PB | LED_PREP_PB | (LED_ARM & petmcvar->ledBlink);
-            if((petmcvar->cp_swin & SW_SAFE) == 0)
+            petmcvar->cp_outputs = LED_ARM_PB | LED_PREP_PB | (LED_ARM & petmcvar->ledBlink);
+            if((petmcvar->cp_inputs & SW_SAFE) == 0)
             {
                 statevar.state = 0; // going to safe state
                 sendStateMessage(0);
@@ -520,7 +536,7 @@ debug_mc_state2 = DTWTIME; // Time round trip to PS
                 mc_debug_print();
                 break;
             }
-            if((petmcvar->cp_swin & PB_PREP) == 0)
+            if((petmcvar->cp_inputs & PB_PREP) == 0)
             {
                 statevar.state = 10; // going to prep state
                 sendStateMessage(1);
@@ -529,7 +545,7 @@ debug_mc_state2 = DTWTIME; // Time round trip to PS
                 break;
             }
             if ((statevar.parametersRequestedFlag == 0) 
-                    && (calib_control_lever_get() > (float) 0.95))
+                    && (petmcvar->cp_cl > (float) 0.95))
             {
                 // request launch parameters
             	can.id = CANID_PARAM_REQUEST;
@@ -539,7 +555,7 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
                 statevar.parametersRequestedFlag = 1;
             }
             if ((statevar.parametersRequestedFlag == 1) 
-                    && (calib_control_lever_get() < (float) 0.05))
+                    && (petmcvar->cp_cl < (float) 0.05))
             {
                 // reset and wait for control lever again                
                 statevar.parametersRequestedFlag = 0;
@@ -557,7 +573,7 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
             break;
 
         case 30: // profile 0   soft start
-            petmcvar->cp_ledout = (LED_GNDRLRTN & petmcvar->ledBlink);
+            petmcvar->cp_outputs = (LED_GNDRLRTN & petmcvar->ledBlink);
             if ((statevar.elapsedTics - statevar.startProfileTics) 
                 >= (stateparam.SOFT_START_TIME * stateparam.TICSPERSECOND))
             {
@@ -568,7 +584,7 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
             break;
 
         case 31: // profile 1   constant tension ground roll
-            petmcvar->cp_ledout = LED_GNDRLRTN & petmcvar->ledBlink;
+            petmcvar->cp_outputs = LED_GNDRLRTN & petmcvar->ledBlink;
             statevar.peakCableSpeed = measurements.lastCableSpeed > statevar.peakCableSpeed
                     ? measurements.lastCableSpeed : statevar.peakCableSpeed;
             if (measurements.lastCableSpeed < (statevar.peakCableSpeed * stateparam.PEAK_CABLE_SPEED_DROP))
@@ -583,7 +599,7 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
             break;
 
         case 40: // ramp
-            petmcvar->cp_ledout = LED_RAMP & petmcvar->ledBlink;
+            petmcvar->cp_outputs = LED_RAMP & petmcvar->ledBlink;
             if (statevar.elapsedTics - statevar.startRampTics > stateparam.RAMP_TIME * stateparam.TICSPERSECOND)
             {
                 statevar.state = 50;
@@ -597,7 +613,7 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
 
         case 50: // climb
             //  xprintf(UXPRT,"%6d\n\r", (double) measurements.lastCableSpeed);
-            petmcvar->cp_ledout = LED_CLIMB & petmcvar->ledBlink;
+            petmcvar->cp_outputs = LED_CLIMB & petmcvar->ledBlink;
             if (measurements.lastCableSpeed < statevar.minCableSpeed)
             {
                 statevar.minCableSpeed = measurements.lastCableSpeed;
@@ -613,12 +629,12 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
 
         case 60: // recovery
              //xprintf(UXPRT,"%6d\n\r",measurements.lastCableSpeed);
-            petmcvar->cp_ledout = LED_RECOVERY & petmcvar->ledBlink;
+            petmcvar->cp_outputs = LED_RECOVERY & petmcvar->ledBlink;
             if (measurements.lastCableSpeed < stateparam.ZERO_CABLE_SPEED_TOLERANCE)
             {
                 statevar.state = 10;
                 beep_n(2, petmcvar);   //  single beep
-                petmcvar->cp_ledout = LED_PREP;
+                petmcvar->cp_outputs = LED_PREP;
                 sendStateMessage(1);                
                 statevar.launchResetFlag = 1; 
                 mc_debug_print();                           
@@ -685,7 +701,7 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
                 break;            
         }
         //  scale by control lever
-        statevar.setptTension *= calib_control_lever_get();   //  comment out to not have to hold handle
+        statevar.setptTension *= petmcvar->cp_cl;   //  comment out to not have to hold handle
 
         //  filter the torque with about 1 Hz bandwidth
         statevar.setptTorque = statevar.setptTension * stateparam.TENSION_TO_TORQUE; 
@@ -722,10 +738,10 @@ void mc_state_lcd_poll(struct ETMCVAR* petmcvar)
         snprintf(lcdLine, 21, "Time: %d", (int) petmcvar->unixtime);      
         lcd_printToLine(UARTLCD, 2, lcdLine);
         xprintf(UXPRT,"%s ",lcdLine);
-		//snprintf(lcdLine, 21, "Control Lvr: %7.3f", (double) calib_control_lever_get());		
+		//snprintf(lcdLine, 21, "Control Lvr: %7.3f", (double) petmcvar->cp_cl);		
         //lcd_printToLine(UARTLCD, 3, lcdLine);
         //xprintf(UXPRT,"%s \n\r",lcdLine);
-snprintf(lcdLine, 21, "Switches: %8x", (int) petmcvar->cp_swin);        
+snprintf(lcdLine, 21, "Switches: %8x", (int) petmcvar->cp_inputs);        
 lcd_printToLine(UARTLCD, 3, lcdLine);
 xprintf(UXPRT,"%s \n\r",lcdLine);        
 	}

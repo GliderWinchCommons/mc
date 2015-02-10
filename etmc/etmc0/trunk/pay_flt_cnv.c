@@ -5,7 +5,25 @@
 * Description        : Conversion to/from float to half-float IEEE-754
 *******************************************************************************/
 /*
+These routines are used to translate a float, 3/4 float, and half-float to/from
+the CAN msg payload.  
 
+The access to the payload is via a pointer and the there is no restriction on the
+memory align boundary.
+
+Endianness is not inlcuded in these routines.  They are based on little endian and
+for big endian code will have to be added to deal with the reversed byte order.
+
+Half-float is the IEEE 754 ARM "alternate" format which does not deal with NAN or 
+subnormal values, but allows the value ranges to be +/- 131071.
+
+3 qtr floats is a here-defined format that simply drops off the lower 8 bits of a
+single precision float and does not make any adjustments to the exponent or other 
+bits.
+
+float is the standard IEEE 754 float.  Since the CAN payload start byte for the 
+float may not be on a natural memory boundary, the packing/unpacking is included
+in these routines.
 */
 #include <stdint.h>
 //#include "common.h"
@@ -49,7 +67,7 @@ float payhalffptofloat(uint8_t *p)
  * @param	: f = single precision float to be converted to payload
 *******************************************************************************/
 void floattopayhalffp(uint8_t *p, float f)
-{	int32_t x;
+{	
 	union UIF flt;
 	
 	if (f > 1.31071E+5)
@@ -99,4 +117,35 @@ float pay3qtrfptofloat(uint8_t *p)
 	flt.uc[3] = *(p+2);
 	return flt.f;
 }	
+/******************************************************************************
+ * void floattopaysinglefp(uint8_t *p, float f);
+ * @brief 	: Convert float to CAN payload bytes holding single precision representation
+ * @param	: p = pointer to payload start byte 
+ * @param	: f = single precision float to be converted to payload
+*******************************************************************************/
+void floattopaysinglefp(uint8_t *p, float f)
+{
+	union UIF flt;
+	flt.f = f;
+	*(p+0) = flt.uc[0];
+	*(p+1) = flt.uc[1];
+	*(p+2) = flt.uc[2];
+	*(p+3) = flt.uc[3];
 
+	return;
+}
+/******************************************************************************
+ * float paysinglefptofloat(uint8_t *p);
+ * @brief 	: Convert float to CAN payload bytes holding single precision representation
+ * @param	: p = pointer to payload start byte 
+ * @return	: float
+*******************************************************************************/
+float paysinglefptofloat(uint8_t *p)
+{
+	union UIF flt;
+	flt.uc[0] = *(p+0);
+	flt.uc[1] = *(p+1);
+	flt.uc[2] = *(p+2);
+	flt.uc[3] = *(p+3);
+	return flt.f;
+}	

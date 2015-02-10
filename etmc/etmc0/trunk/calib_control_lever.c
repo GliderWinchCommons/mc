@@ -124,23 +124,23 @@ void calib_control_lever(struct ETMCVAR* petmcvar)
 
 				if (spi2_busy() != 0) // Is SPI2 busy?
 				{ // Here, no.
-					u32 tmp = petmcvar->cp_ledout;
+					u32 tmp = petmcvar->cp_outputs;
 	    			for (i = SPI2SIZE - 1; i >= 0; i--)
 	    			{
 	    				petmcvar->spi_ledout[i] = (char) tmp;
 	    				tmp >>= 8;
 	    			}
-	    			petmcvar->cp_swin = (((int) petmcvar->spi_swin[0]) << 8) | (int) petmcvar->spi_swin[1];
+	    			petmcvar->cp_inputs = (((int) petmcvar->spi_swin[0]) << 8) | (int) petmcvar->spi_swin[1];
 					spi2_rw(petmcvar->spi_ledout, petmcvar->spi_swin, SPI2SIZE); 
-					xprintf(UXPRT, "%5u %5d %8x \n\r", clcalstate, adc_tmp, petmcvar->cp_swin);	
+					xprintf(UXPRT, "%5u %5d %8x \n\r", clcalstate, adc_tmp, petmcvar->cp_inputs);	
 
-					petmcvar->cp_ledout	= 0;
+					petmcvar->cp_outputs = 0;
 					if ((clcalstate == 1) || (clcalstate == 2))
 					{
 						// LEDs chasing their tails
 						for (i = 0; i < ledLag; i++)
 						{
-							petmcvar->cp_ledout	|= ledTestPattern[ledCount + i];
+							petmcvar->cp_outputs |= ledTestPattern[ledCount + i];
 						}
 					}
 
@@ -157,7 +157,7 @@ void calib_control_lever(struct ETMCVAR* petmcvar)
 						}
 						case 1:	// waiting for CL to rest position	
 						{
-							if (petmcvar->cp_swin & CLREST) break;
+							if (petmcvar->cp_inputs & CLREST) break;
 							clcalstate = 2;
 							cloffset = clmax = adc_tmp;	//	reset min and max values
 							sprintf(vv, "twice: 0");
@@ -166,7 +166,7 @@ void calib_control_lever(struct ETMCVAR* petmcvar)
 						}
 						case 2:	//	waiting for full scale position first time
 						{
-							if (petmcvar->cp_swin & CLFS) break ;
+							if (petmcvar->cp_inputs & CLFS) break ;
 							clcalstate = 3;
 							sprintf(vv, "twice: 0.5");
 							lcd_printToLine(UARTLCD, 1, vv);
@@ -174,7 +174,7 @@ void calib_control_lever(struct ETMCVAR* petmcvar)
 						}
 						case 3:	//	wating for return to rest first time
 						{
-							if (petmcvar->cp_swin & CLREST) break; 
+							if (petmcvar->cp_inputs & CLREST) break; 
 							clcalstate = 4;
 							// clcalstate = 6;		//	only requires 1 cycle
 							sprintf(vv, "twice: 1  ");
@@ -184,7 +184,7 @@ void calib_control_lever(struct ETMCVAR* petmcvar)
 						}
 						case 4:	//	waiting for full scale second time
 						{
-							if (petmcvar->cp_swin & CLFS) break;
+							if (petmcvar->cp_inputs & CLFS) break;
 							clcalstate = 5;
 							sprintf(vv, "twice: 1.5");
 							lcd_printToLine(UARTLCD, 1, vv);
@@ -192,7 +192,7 @@ void calib_control_lever(struct ETMCVAR* petmcvar)
 						}
 						case 5:	//	waiting for return to rest second time
 						{
-							if (petmcvar->cp_swin & CLREST) break;
+							if (petmcvar->cp_inputs & CLREST) break;
 							single_beep();
 							clcalstate = 6; 
 						}
@@ -222,19 +222,19 @@ void calib_control_lever(struct ETMCVAR* petmcvar)
 			{ //	Time expired
 				if (spi2_busy() != 0) // Is SPI2 busy?
 				{ // Here, no.
-					u32 tmp = petmcvar->cp_ledout;
+					u32 tmp = petmcvar->cp_outputs;
 	    			for (i = SPI2SIZE - 1; i >= 0; i--)
 	    			{
 	    				petmcvar->spi_ledout[i] = (char) tmp;
 	    				tmp >>= 8;
 	    			}
-	    			petmcvar->cp_swin = (((int) petmcvar->spi_swin[0]) << 8) | (int) petmcvar->spi_swin[1];
+	    			petmcvar->cp_inputs = (((int) petmcvar->spi_swin[0]) << 8) | (int) petmcvar->spi_swin[1];
 					spi2_rw(petmcvar->spi_ledout, petmcvar->spi_swin, SPI2SIZE); 
-					petmcvar->cp_ledout	= 0;					
+					petmcvar->cp_outputs = 0;					
 					// CP LEDs chasing their tails
 					for (i = 0; i < ledLag; i++)
 					{
-						petmcvar->cp_ledout	|= ledTestPattern[ledCount + i];
+						petmcvar->cp_outputs |= ledTestPattern[ledCount + i];
 					}								
 				}
 				switch(clcalstate)
