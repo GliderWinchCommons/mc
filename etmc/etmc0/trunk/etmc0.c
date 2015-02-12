@@ -187,10 +187,10 @@ int main(void)
 	etmcvar.beep_state = 0;
 
 	//	initialize control panel history variable
-	etmcvar.cp_inputs_count = -1;
-	etmcvar.cp_outputs_count = -1;
-	etmcvar.cp_cl_count = -1;
-	etmcvar.cp_lcd_count = -1;
+	etmcvar.cp_inputs_count = 0;
+	etmcvar.cp_outputs_count = 0;
+	etmcvar.cp_cl_count = 0;
+	etmcvar.cp_lcd_count = 0;
 
 /* --------------------- Endless Polling Loop ----------------------------------------------- */
 	while (1==1)

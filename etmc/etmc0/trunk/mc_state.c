@@ -404,8 +404,8 @@ void mc_debug_print(void)
 void stateMachine(struct ETMCVAR* petmcvar)
 { 
 	struct CANRCVBUF can;
+    
     petmcvar->cp_cl = calib_control_lever_get();
-
 
     if (statevar.launchResetFlag == 1)   // init variables for launch
      {
@@ -418,7 +418,6 @@ void stateMachine(struct ETMCVAR* petmcvar)
          statevar.filt_torque = 0;  //  This should be set to 0 on entry to
                                     //  Prep from Safe in real system
      }
-
      
      #if LONGTIME     
      
@@ -481,12 +480,32 @@ debug_mc_state2 = DTWTIME; // Time round trip to PS
             //  Control Panel Output Messages
             if (GPIOB_IDR & (1 << 1)) //    test for local or glass CP
             {
-                can.id = CANID_CP_CL_LCL;
-                can.dlc = 3;
-                floattopayhalffp(&can.cd.uc[0], petmcvar->cp_cl);
-                can.cd.uc[2] = 0;
-                msg_out_mc(&can);
+                float clDel = petmcvar->cp_cl - petmcvar->cp_cl_old;
+                clDel = (clDel >=0) ? clDel : -clDel;
+                //if ((clDel > CP_CL_DELTA) || (petmcvar->cp_cl_count-- <= 0))
+                {   //  output local control lever message
+                    petmcvar->cp_cl_count = petmcvar->cp_cl_count <= 0 ? CP_CL_HB_COUNT : petmcvar->cp_cl_count;
+                    petmcvar->cp_cl_old = petmcvar->cp_cl;
+                    can.id = CANID_CP_CL_LCL;
+                    can.dlc = 3;
+                    floattopayhalffp(&can.cd.uc[0], petmcvar->cp_cl);
+                    can.cd.uc[2] = 0;
+                    msg_out_mc(&can);
+                }                
+                //if ((petmcvar->cp_inputs ^ petmcvar->cp_inputs_old) || (petmcvar->cp_inputs_count-- <= 0) )
+                {   //  output local control panel inputs message
+                    petmcvar->cp_inputs_count = (petmcvar->cp_inputs_count <= 0) ? CP_INPUTS_HB_COUNT : petmcvar->cp_inputs_count;
+                    petmcvar->cp_inputs_old = petmcvar->cp_inputs;
+                    can.id = CANID_CP_INPUTS_LCL;
+                    can.dlc = 2;
+                    can.cd.us[0] = petmcvar->cp_inputs;
+                    msg_out_mc(&can);    
+                }                
             }
+            can.id = CANID_CP_OUTPUTS;
+            can.dlc = 2;
+            can.cd.us[0] = petmcvar->cp_outputs;
+            msg_out_mc(&can);
 
             // next on time Time message time
             simulationvar.nextStepTime  += stateparam.STEPTIMECLOCKS;
