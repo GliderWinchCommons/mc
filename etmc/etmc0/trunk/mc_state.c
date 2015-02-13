@@ -482,7 +482,7 @@ debug_mc_state2 = DTWTIME; // Time round trip to PS
             {
                 float clDel = petmcvar->cp_cl - petmcvar->cp_cl_old;
                 clDel = (clDel >=0) ? clDel : -clDel;
-                //if ((clDel > CP_CL_DELTA) || (petmcvar->cp_cl_count-- <= 0))
+                if ((clDel > CP_CL_DELTA) || (petmcvar->cp_cl_count-- <= 0))
                 {   //  output local control lever message
                     petmcvar->cp_cl_count = petmcvar->cp_cl_count <= 0 ? CP_CL_HB_COUNT : petmcvar->cp_cl_count;
                     petmcvar->cp_cl_old = petmcvar->cp_cl;
@@ -492,7 +492,7 @@ debug_mc_state2 = DTWTIME; // Time round trip to PS
                     can.cd.uc[2] = 0;
                     msg_out_mc(&can);
                 }                
-                //if ((petmcvar->cp_inputs ^ petmcvar->cp_inputs_old) || (petmcvar->cp_inputs_count-- <= 0) )
+                if ((petmcvar->cp_inputs ^ petmcvar->cp_inputs_old) || (petmcvar->cp_inputs_count-- <= 0))
                 {   //  output local control panel inputs message
                     petmcvar->cp_inputs_count = (petmcvar->cp_inputs_count <= 0) ? CP_INPUTS_HB_COUNT : petmcvar->cp_inputs_count;
                     petmcvar->cp_inputs_old = petmcvar->cp_inputs;
@@ -502,10 +502,16 @@ debug_mc_state2 = DTWTIME; // Time round trip to PS
                     msg_out_mc(&can);    
                 }                
             }
-            can.id = CANID_CP_OUTPUTS;
-            can.dlc = 2;
-            can.cd.us[0] = petmcvar->cp_outputs;
-            msg_out_mc(&can);
+            if ((petmcvar->cp_outputs ^ petmcvar->cp_outputs_old) || (petmcvar->cp_outputs_count-- <= 0))
+            {   //  output led output message
+                petmcvar->cp_outputs_count = (petmcvar->cp_outputs_count <= 0) ? CP_OUTPUTS_HB_COUNT : petmcvar->cp_outputs_count;
+                petmcvar->cp_outputs_old = petmcvar->cp_outputs;
+                can.id = CANID_CP_OUTPUTS;
+                can.dlc = 2;
+                can.cd.us[0] = petmcvar->cp_outputs;
+                msg_out_mc(&can);
+            }
+            
 
             // next on time Time message time
             simulationvar.nextStepTime  += stateparam.STEPTIMECLOCKS;
@@ -592,7 +598,7 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
             break;
 
         case 30: // profile 0   soft start
-            petmcvar->cp_outputs = (LED_GNDRLRTN & petmcvar->ledBlink);
+            petmcvar->cp_outputs = LED_GNDRLRTN;  // & petmcvar->ledBlink;
             if ((statevar.elapsedTics - statevar.startProfileTics) 
                 >= (stateparam.SOFT_START_TIME * stateparam.TICSPERSECOND))
             {
@@ -603,7 +609,7 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
             break;
 
         case 31: // profile 1   constant tension ground roll
-            petmcvar->cp_outputs = LED_GNDRLRTN & petmcvar->ledBlink;
+            petmcvar->cp_outputs = LED_GNDRLRTN;    // & petmcvar->ledBlink;
             statevar.peakCableSpeed = measurements.lastCableSpeed > statevar.peakCableSpeed
                     ? measurements.lastCableSpeed : statevar.peakCableSpeed;
             if (measurements.lastCableSpeed < (statevar.peakCableSpeed * stateparam.PEAK_CABLE_SPEED_DROP))
@@ -618,7 +624,7 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
             break;
 
         case 40: // ramp
-            petmcvar->cp_outputs = LED_RAMP & petmcvar->ledBlink;
+            petmcvar->cp_outputs = LED_RAMP;    // & petmcvar->ledBlink;
             if (statevar.elapsedTics - statevar.startRampTics > stateparam.RAMP_TIME * stateparam.TICSPERSECOND)
             {
                 statevar.state = 50;
@@ -632,7 +638,7 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
 
         case 50: // climb
             //  xprintf(UXPRT,"%6d\n\r", (double) measurements.lastCableSpeed);
-            petmcvar->cp_outputs = LED_CLIMB & petmcvar->ledBlink;
+            petmcvar->cp_outputs = LED_CLIMB;   // & petmcvar->ledBlink;
             if (measurements.lastCableSpeed < statevar.minCableSpeed)
             {
                 statevar.minCableSpeed = measurements.lastCableSpeed;
@@ -648,7 +654,7 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
 
         case 60: // recovery
              //xprintf(UXPRT,"%6d\n\r",measurements.lastCableSpeed);
-            petmcvar->cp_outputs = LED_RECOVERY & petmcvar->ledBlink;
+            petmcvar->cp_outputs = LED_RECOVERY;    // & petmcvar->ledBlink;
             if (measurements.lastCableSpeed < stateparam.ZERO_CABLE_SPEED_TOLERANCE)
             {
                 statevar.state = 10;

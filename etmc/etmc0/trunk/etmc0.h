@@ -41,7 +41,7 @@
 #define CL_RST_N0 1 << 11	//	low at rest
 #define CL_FS_ NO 1 << 8	// 	low at full scale
 
-#define CP_OUTPUTS_HB_COUNT 16
+#define CP_OUTPUTS_HB_COUNT 64
 #define CP_INPUTS_HB_COUNT 	48
 #define CP_CL_HB_COUNT 		24
 #define CP_CL_DELTA			0.005
