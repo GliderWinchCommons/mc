@@ -56,9 +56,9 @@ struct ETMCVAR
 	u32 cp_outputs;				// concatenated spi_ledout
 	u32 cp_outputs_old;	
 	int cp_outputs_count;
-	u32 cp_inputs;			//	concatenated spi switch inputs
-	u32 cp_inputs_old;		// 	old switches condition
-	int cp_inputs_count;			//	counter for tic2 to next mandentory cp input update
+	u32 cp_inputs;				//	concatenated spi switch inputs
+	u32 cp_inputs_old;			// 	old switches condition
+	int cp_inputs_count;		//	counter for tic2 to next mandentory cp input update
 	float cp_cl;				//	working control lever value
 	float cp_cl_old;			//	old control lever value
 	int cp_cl_count;

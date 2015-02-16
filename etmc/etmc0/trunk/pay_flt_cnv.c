@@ -48,14 +48,23 @@ float payhalffptofloat(uint8_t *p)
 	uint32_t 	uisign;	// Sign
 	int32_t 	uiexp;	// Exponent
 	union UIF flt;
-
-	uiman = *p | (*(p+1) << 8);
-	uisign = (*(p+1) & 0x80) << 24;	// Save sign bit
+/*	
+	uiman = *p | (*(p+1) << 8);	//	does char get promoted to uint32_t before shift?
+	uisign = (*(p+1) & 0x80) << 24;	// Save sign bit  //	does char get promoted to uint32_t before shift?
 	uiman &= 0x03ff;		// Lower 10 bits is half-float mantissa
 	uiman = uiman << 13;		// Position for full-float
-	uiexp = ( (*(p+1) >> 2) & 0x1f );
+	uiexp = ((*(p+1) >> 2) & 0x1f );
 	uiexp += (127-15);
-	uiexp = (uiexp << 23) & 0x7f800000;
+	uiexp = (uiexp << 23) & 0x7f800000;	//	why is this needed?
+	flt.ui = uisign | uiexp | uiman; // Float is the composite
+*/
+	uiman = ((uint32_t)(*p)) | (((uint32_t) (*(p+1))) << 8);
+	uiman &= 0x03ff;		// lower 10 bits is half-float mantissa	
+	uiman = uiman << 13;	// position for full-float
+	uisign = ((uint32_t)(*(p+1) & 0x80)) << 24;	// save sign bit 
+	uiexp = ((*(p+1) >> 2) & 0x1f );
+	uiexp += (127-15);
+	uiexp = uiexp << 23;	// position for full-float
 	flt.ui = uisign | uiexp | uiman; // Float is the composite
 	
 	return flt.f;
@@ -70,6 +79,8 @@ void floattopayhalffp(uint8_t *p, float f)
 {	
 	union UIF flt;
 	
+
+	/*
 	if (f > 1.31071E+5)
 	{
 		f = 1.31071E+5;
@@ -78,13 +89,38 @@ void floattopayhalffp(uint8_t *p, float f)
 	{
 		f = 1.31071E-4;
 	}
-
 	flt.f = f;	 
 	*(p+0)  = (flt.ui >> 13);	// Get lo-ord part of mantissa
 	*(p+1)  = ((flt.ui >> 21) & 0x03); // Get highest 2 bits of mantissa
 	*(p+1) |= ((flt.ui >> 21) & 0x3c);	// Get full-float exponent
 	*(p+1) |= ((flt.ui & 0xc0000000) >> 24); // Lastly the sign bit
+	*/
 
+
+	float absf = f;
+	//	does not deal with subnormals and rounding yet
+	if (f < (float) 0.0)
+	 {
+	 	f = -f;
+	 }		 
+	if (absf == (float) 0.0)
+		{
+			*p = *(p+1) = 0;
+			return;
+		}
+	if (absf > 2047 * 64)	//	131008
+	{
+		absf = 2047 * 64;
+	}
+	if (absf < (float) 1.0 / (1 << 14))	//	2^-14 = 6.103515625e-5
+	{
+		absf = (float) 1.0 / (1 << 14);
+	}
+	flt.f = absf;	 
+	*p = (flt.ui >> 13);					// Get low-ord part of mantissa
+	*(p+1)  = (flt.ui >> 21) & 0x03; 		// Get highest 2 bits of mantissa
+	*(p+1) |= (flt.ui >> 21) & 0x3c;		// Get 4 lsbs of exponent
+	*(p+1) |= (flt.ui & 0xc0000000) >> 24;	// Lastly the sign bit and exponent msb
 	return;
 }
 /******************************************************************************

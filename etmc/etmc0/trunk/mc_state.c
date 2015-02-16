@@ -5,6 +5,7 @@
 * Description        : ET state machine for etmc0.c
 *******************************************************************************/
 #include "libopencm3/stm32/f4/gpio.h"
+#include <stdint.h>
 
 #include "etmc0.h"
 #include "mc_msgs.h"
@@ -339,7 +340,7 @@ unsigned int msgrcvlist = 0;	// Accumulate msgs received after sending a time ms
 #define RCV_CANID_MOTOR		    0x4
 #define RCV_CANID_LAUNCH_PARAM	0x8
 
-void mc_state_msg_select(struct CANRCVBUF* pcan)
+void mc_state_msg_select(struct CANRCVBUF* pcan, struct ETMCVAR* petmcvar)
 {
 	switch (pcan->id)
 	{
@@ -350,6 +351,7 @@ xprintf(UXPRT,"T %d %d\n\r",(DTWTIME - debug_mc_state2),debug_mc_state3 );
 		msgsused.lastrcvdTension.can = *pcan;
 msgsused.lastrcvdTension.frac = debug_mc_state1;
 		measurements.lastTension = ((float)pcan->cd.us[0] - scaleoffset.tensionOffset) * scaleoffset.tensionScale;
+        //measurements.lastTension = payhalffptofloat((uint8_t *) &(pcan->cd.uc[0]));
 		statevar.tensionMessageFlag = 1;
    	     	msgrcvlist |= RCV_CANID_TENSION;
 xprintf(UXPRT,"R%08X %03d %03d\n\r", pcan->id, debug_mc_state1,pcan->cd.uc[3]);
@@ -381,8 +383,14 @@ xprintf(UXPRT,"R%08X %03d %03d\n\r", pcan->id, debug_mc_state1,pcan->cd.uc[6]);
 msgsused.lastrcvdLaunchParam.frac = debug_mc_state1;
         	statevar.paramReceivedFlag = 1;
 		msgrcvlist |= CANID_LAUNCH_PARAM;
-xprintf(UXPRT,"R%08X %03d %03d\n\r", pcan->id, debug_mc_state1,pcan->cd.uc[0]);
+xprintf(UXPRT,"R%08X %03d %03d\n\r", pcan->id, debug_mc_state1, pcan->cd.uc[0]);
 		break;
+    case CANID_CP_INPUTS_RMT: 
+        petmcvar->cp_inputs = pcan->cd.us[0];    
+        break;
+    case CANID_CP_CL_RMT: 
+        petmcvar->cp_cl = payhalffptofloat((uint8_t *) &(pcan->cd.uc[0]));    
+        break;        
 	}
 	return;
 }
@@ -405,7 +413,7 @@ void stateMachine(struct ETMCVAR* petmcvar)
 { 
 	struct CANRCVBUF can;
     
-    petmcvar->cp_cl = calib_control_lever_get();
+    //petmcvar->cp_cl = calib_control_lever_get();
 
     if (statevar.launchResetFlag == 1)   // init variables for launch
      {
@@ -478,8 +486,9 @@ debug_mc_state1 = petmcvar->fracTime;
             msg_out_mc(&can); // output to CAN+USB
 debug_mc_state2 = DTWTIME; // Time round trip to PS
             //  Control Panel Output Messages
-            if (GPIOB_IDR & (1 << 1)) //    test for local or glass CP
+            if (0 && GPIOB_IDR & (1 << 1)) //    test for local or glass CP
             {
+
                 float clDel = petmcvar->cp_cl - petmcvar->cp_cl_old;
                 clDel = (clDel >=0) ? clDel : -clDel;
                 if ((clDel > CP_CL_DELTA) || (petmcvar->cp_cl_count-- <= 0))
@@ -491,7 +500,7 @@ debug_mc_state2 = DTWTIME; // Time round trip to PS
                     floattopayhalffp(&can.cd.uc[0], petmcvar->cp_cl);
                     can.cd.uc[2] = 0;
                     msg_out_mc(&can);
-                }                
+                }              
                 if ((petmcvar->cp_inputs ^ petmcvar->cp_inputs_old) || (petmcvar->cp_inputs_count-- <= 0))
                 {   //  output local control panel inputs message
                     petmcvar->cp_inputs_count = (petmcvar->cp_inputs_count <= 0) ? CP_INPUTS_HB_COUNT : petmcvar->cp_inputs_count;
@@ -766,7 +775,7 @@ void mc_state_lcd_poll(struct ETMCVAR* petmcvar)
 		//snprintf(lcdLine, 21, "Control Lvr: %7.3f", (double) petmcvar->cp_cl);		
         //lcd_printToLine(UARTLCD, 3, lcdLine);
         //xprintf(UXPRT,"%s \n\r",lcdLine);
-snprintf(lcdLine, 21, "Switches: %8x", (int) petmcvar->cp_inputs);        
+snprintf(lcdLine, 21, "Sw: %4x Cl: %4.2f", (int) petmcvar->cp_inputs, (double) petmcvar->cp_cl);        
 lcd_printToLine(UARTLCD, 3, lcdLine);
 xprintf(UXPRT,"%s \n\r",lcdLine);        
 	}
