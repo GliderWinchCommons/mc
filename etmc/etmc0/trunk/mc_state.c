@@ -282,13 +282,13 @@ void mc_state_init(struct ETMCVAR* petmcvar)
 
 // struct MCSCALEOFFSET
     scaleoffset.torqueScale = (float) (1.0 / 32.0);
-    scaleoffset.tensionScale = (float) 0.25;
-    scaleoffset.tensionOffset = (float) 1024.0;
-    scaleoffset.cableAngleScale = (float) 0.5;
-    scaleoffset.cableAngleOffset = (float) 40.0;
+    //scaleoffset.tensionScale = (float) 0.25;
+    //scaleoffset.tensionOffset = (float) 1024.0;
+    //scaleoffset.cableAngleScale = (float) 0.5;
+    //scaleoffset.cableAngleOffset = (float) 40.0;
     scaleoffset.drumRadius = (float) 0.4;
     scaleoffset.motorToDrum = (float) 7.0;    //  speed reduction motor to drum
-    scaleoffset.motorSpeedScale = (float) (1.0 / 128.0);
+    //scaleoffset.motorSpeedScale = (float) (1.0 / 128.0);
 
 //  control panel update parameters
     stateparam.cp_cl_heartbeat = 63;
@@ -359,7 +359,8 @@ xprintf(UXPRT,"R%08X %03d %03d\n\r", pcan->id, debug_mc_state1,pcan->cd.uc[3]);
 		break;
 	case CANID_CABLE_ANGLE:		// 0x3A000000	 464 
 		msgsused.lastrcvdCableAngle.can = *pcan;
-                measurements.lastCableAngle = ((float)pcan->cd.uc[0] - scaleoffset.cableAngleOffset) * scaleoffset.cableAngleScale;
+                //measurements.lastCableAngle = ((float)pcan->cd.uc[0] - scaleoffset.cableAngleOffset) * scaleoffset.cableAngleScale;
+                measurements.lastCableAngle = payhalffptofloat((uint8_t *) &(pcan->cd.uc[0]));
                 if (statevar.taperFlag == 0 && measurements.lastCableAngle > stateparam.TAPERANGLETRIG)
                 {
                 	statevar.taperFlag = 1;
@@ -371,7 +372,8 @@ xprintf(UXPRT,"R%08X %03d %03d\n\r", pcan->id, debug_mc_state1,pcan->cd.uc[2]);
 		break;
 	case CANID_MOTOR_SPEED:		// 0x25000000	 296 
 		msgsused.lastrcvdMotorSpeed.can = *pcan;
-		measurements.lastMotorSpeed = (float)pcan->cd.us[0] * scaleoffset.motorSpeedScale;
+		//measurements.lastMotorSpeed = (float)pcan->cd.us[0] * scaleoffset.motorSpeedScale;
+        measurements.lastMotorSpeed = payhalffptofloat((uint8_t *) &(pcan->cd.uc[0]));
 		measurements.lastCableSpeed = (float) (2 * 3.14159 * scaleoffset.drumRadius * measurements.lastMotorSpeed / scaleoffset.motorToDrum);
 msgsused.lastrcvdMotorSpeed.frac = debug_mc_state1;
        		statevar.speedMessageFlag = 1;
