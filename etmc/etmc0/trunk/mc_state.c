@@ -350,8 +350,8 @@ xprintf(UXPRT,"T %d %d\n\r",(DTWTIME - debug_mc_state2),debug_mc_state3 );
 
 		msgsused.lastrcvdTension.can = *pcan;
 msgsused.lastrcvdTension.frac = debug_mc_state1;
-		measurements.lastTension = ((float)pcan->cd.us[0] - scaleoffset.tensionOffset) * scaleoffset.tensionScale;
-        //measurements.lastTension = payhalffptofloat((uint8_t *) &(pcan->cd.uc[0]));
+		//measurements.lastTension = ((float)pcan->cd.us[0] - scaleoffset.tensionOffset) * scaleoffset.tensionScale;
+        measurements.lastTension = payhalffptofloat((uint8_t *) &(pcan->cd.uc[0]));
 		statevar.tensionMessageFlag = 1;
    	     	msgrcvlist |= RCV_CANID_TENSION;
 xprintf(UXPRT,"R%08X %03d %03d\n\r", pcan->id, debug_mc_state1,pcan->cd.uc[3]);
