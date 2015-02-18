@@ -488,9 +488,8 @@ debug_mc_state1 = petmcvar->fracTime;
             msg_out_mc(&can); // output to CAN+USB
 debug_mc_state2 = DTWTIME; // Time round trip to PS
             //  Control Panel Output Messages
-            if (0 && GPIOB_IDR & (1 << 1)) //    test for local or glass CP
+            if (GPIOB_IDR & (1 << 1)) //    test for local or glass CP
             {
-
                 float clDel = petmcvar->cp_cl - petmcvar->cp_cl_old;
                 clDel = (clDel >=0) ? clDel : -clDel;
                 if ((clDel > CP_CL_DELTA) || (petmcvar->cp_cl_count-- <= 0))
@@ -741,14 +740,15 @@ can.cd.uc[0] = debug_mc_state1;    //  for debug
 
         //  filter the torque with about 1 Hz bandwidth
         statevar.setptTorque = statevar.setptTension * stateparam.TENSION_TO_TORQUE; 
-        statevar.filt_torque += (statevar.setptTorque - statevar.filt_torque) 
-        * ((float) 1.0 / ((8 * stateparam.TICSPERSECOND) / 64));
+        statevar.filt_torque += (statevar.setptTorque 
+            - statevar.filt_torque) * ((float) 1.0 / ((8 * stateparam.TICSPERSECOND) / 64));
 
         // torqueMessage.set_short((short) (statevar.filt_torque / scaleoffset.torqueScale), 0); // torque
      	can.id = CANID_TORQUE;
-        can.dlc = 2 + 1;
-can.cd.uc[2] = debug_mc_state1;    //  for debug
-        can.cd.us[0] = (short) (statevar.filt_torque / scaleoffset.torqueScale);
+        can.dlc = 2 + 0;
+//can.cd.uc[2] = debug_mc_state1;    //  for debug
+        //can.cd.us[0] = (short) (statevar.filt_torque / scaleoffset.torqueScale);
+        floattopayhalffp(&can.cd.uc[0], statevar.filt_torque);
         msg_out_mc(&can);
         statevar.tensionMessageFlag = statevar.speedMessageFlag = 0;
     }            

@@ -11,11 +11,13 @@
 
 
 #define CANID_TIME				0x20000000	// 256 
-#define CANID_MOTOR_SPEED		0x25000000	// 296	inconsistent with Excel 
+//#define CANID_MOTOR_SPEED		0x25000000	// 296	inconsistent with Excel 
+#define CANID_MOTOR_SPEED		0x24800000	// 292	
 #define CANID_TORQUE			0x25800000	// 300 
 #define CANID_STATE				0x26000000	// 304 
 #define CANID_PARAM_REQUEST		0x27000000	// 312
-#define CANID_LAUNCH_PARAM		0x28E00000	// 327 	inconsistent with Excel
+//#define CANID_LAUNCH_PARAM		0x28E00000	// 327 	inconsistent with Excel
+#define CANID_LAUNCH_PARAM		0x28000000	// 320
 #define CANID_CP_CL_RMT			0x29000000	// 328	
 #define CANID_CP_CL_LCL			0x29200000	// 329		 
 #define CANID_CP_INPUTS_RMT		0x29400000	// 330

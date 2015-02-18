@@ -50,7 +50,7 @@ void calib_control_lever(struct ETMCVAR* petmcvar)
 	char vv[128];
 
 	int ledCount = 0;
-	int cycleCount = 4;
+	int cycleCount = 1;
 	#define ledPatternLength 32
 	#define ledLag 3
 	//	led test pattern with extension to effect circular behavior
@@ -96,8 +96,8 @@ void calib_control_lever(struct ETMCVAR* petmcvar)
 		0x0000
 	};
 
-	if (GPIOB_IDR & (1 << 1)) //	test for local or glass CP
-	{
+	if (GPIOB_IDR & (1 << 1)) //	test for physical or glass CP
+	{	//	physical CP
 		xprintf (UXPRT,"\nBegin control lever calibration\n\r");
 		// dummy read of SPI switches to deal with false 0000 initially returned
 		spi2_rw(petmcvar->spi_ledout, petmcvar->spi_swin, SPI2SIZE);
