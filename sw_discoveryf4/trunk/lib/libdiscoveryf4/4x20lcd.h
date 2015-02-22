@@ -11,6 +11,7 @@
 /*	LCD Line Size  */
 #define LCDLINESIZE 20
 #define LCDROWSIZE 4
+#define LCD_BACKLIGHT_LEVEL 70
 
 // initializes the lcd screen
 void lcd_init(int uartnumber);

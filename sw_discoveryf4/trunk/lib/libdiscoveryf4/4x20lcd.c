@@ -36,6 +36,7 @@ void lcd_init(int uartnumber) {
 	lcd_on(uartnumber);
 
 	lcd_clear(uartnumber);
+	lcd_backlight(uartnumber, LCD_BACKLIGHT_LEVEL);
 	lcd_moveCursor(uartnumber,0, 0);
 }
 
@@ -52,6 +53,14 @@ void lcd_on(int uartnumber) {
 void lcd_off(int uartnumber) {
 	bsp_uart_putc_uartnum(uartnumber, 254);
 	bsp_uart_putc_uartnum(uartnumber, 0x08); // turn off screem
+}
+
+void lcd_backlight(int uartnumber, int level) {
+	level = level < 0 ? 0 : level;
+	level = level > 100 ? 100 : level;
+	level = 128 + (level * 29) /100;
+	bsp_uart_putc_uartnum(uartnumber, 124);
+	bsp_uart_putc_uartnum(uartnumber, level); // set backlight level 128 - 157
 }
 
 void lcd_print(int uartnumber, char* p) 
